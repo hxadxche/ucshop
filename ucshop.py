@@ -35,16 +35,6 @@ cursor.execute("""
 """)
 conn.commit()
 
-# Добавим несколько тестовых кодов
-sample_data = [
-    ("60 UC", "60CODE1"), ("60 UC", "60CODE2"),
-    ("325 UC", "325CODE1"), ("325 UC", "325CODE2"),
-    ("385 UC", "385CODE1"), ("385 UC", "385CODE2"),
-    ("660 UC", "660CODE1"), ("660 UC", "660CODE2"),
-    ("720 UC", "720CODE1"), ("720 UC", "720CODE2"),
-    ("1320 UC", "1320CODE1"), ("1320 UC", "1320CODE2"),
-]
-
 # Очищаем старые данные (если были)
 cursor.execute("DELETE FROM uc_codes")
 
@@ -164,10 +154,15 @@ async def handle_uc_package(message: Message, state: FSMContext, label: str, uni
     await state.update_data(quantity=1, unit_price=unit_price, label=label)
     await send_quantity_menu(message, 1, unit_price, label)
 
-for label, price in [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]:
-    @dp.message(F.text.startswith(label))
-    async def _(message: Message, state: FSMContext, l=label, p=price):
-        await handle_uc_package(message, state, l, p)
+uc_packages = [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]
+
+for label, price in uc_packages:
+    def register_handler(lbl, prc):
+        @dp.message(F.text.startswith(lbl))
+        async def handle(message: Message, state: FSMContext):
+            await handle_uc_package(message, state, lbl, prc)
+    register_handler(label, price)
+
 
 @dp.message(UCState.choosing_quantity, F.text.in_({"+1", "+3", "+5", "-1", "-3", "-5"}))
 async def change_quantity(message: Message, state: FSMContext):
