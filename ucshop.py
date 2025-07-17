@@ -35,14 +35,7 @@ cursor.execute("""
 conn.commit()
 
 # Добавим несколько тестовых кодов
-sample_data = [
-    ("60 UC", "60CODE1"), ("60 UC", "60CODE2"),
-    ("325 UC", "325CODE1"), ("325 UC", "325CODE2"),
-    ("385 UC", "385CODE1"), ("385 UC", "385CODE2"),
-    ("660 UC", "660CODE1"), ("660 UC", "660CODE2"),
-    ("720 UC", "720CODE1"), ("720 UC", "720CODE2"),
-    ("1320 UC", "1320CODE1"), ("1320 UC", "1320CODE2"),
-]
+ for label, price in [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]:
 
 # Очищаем старые данные (если были)
 cursor.execute("DELETE FROM uc_codes")
