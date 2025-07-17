@@ -1,2 +1,3 @@
 [build]
 start = "bash start.sh"
+python webhook_server.py
