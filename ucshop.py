@@ -35,7 +35,7 @@ cursor.execute("""
 conn.commit()
 
 # Добавим несколько тестовых кодов
-for label, price in [("60 UC", 80), ("325 UC", 380), ...]:
+for label, price in [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]:
     @dp.message(F.text.startswith(label))
     async def _(message: Message, state: FSMContext, l=label, p=price):
         await handle_uc_package(message, state, l, p)
