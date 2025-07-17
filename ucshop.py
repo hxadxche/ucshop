@@ -34,14 +34,6 @@ cursor.execute("""
     )
 """)
 conn.commit()
-sample_data = [
-    ("60 UC", "60CODE1"), ("60 UC", "60CODE2"),("60 UC", "60CODE3"),("60 UC", "60CODE4"),("60 UC", "60CODE5"),
-    ("325 UC", "325CODE1"), ("325 UC", "325CODE2"),("325 UC", "325CODE3"), ("325 UC", "325CODE4"),
-    ("385 UC", "385CODE1"), ("385 UC", "385CODE2"),("385 UC", "385CODE3"), ("385 UC", "385CODE4"),
-    ("660 UC", "660CODE1"), ("660 UC", "660CODE2"),("660 UC", "660CODE3"), ("660 UC", "660CODE4"),
-    ("720 UC", "720CODE1"), ("720 UC", "720CODE2"),("720 UC", "720CODE3"), ("720 UC", "720CODE4"),
-    ("1320 UC", "1320CODE1"), ("1320 UC", "1320CODE2"),("1320 UC", "1320CODE3"), ("1320 UC", "1320CODE4"),
-]
 # Очищаем старые данные (если были)
 #cursor.execute("DELETE FROM uc_codes")
 
