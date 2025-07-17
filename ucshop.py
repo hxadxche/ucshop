@@ -163,13 +163,30 @@ async def handle_uc_package(message: Message, state: FSMContext, label: str, uni
 
 
 
-from functools import partial
+@dp.message(F.text.startswith("60 UC"))
+async def handle_60(message: Message, state: FSMContext):
+    await handle_uc_package(message, state, "60 UC", 80)
 
-for label, price in uc_packages: uc_packages = [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]
-    async def handle(message: Message, state: FSMContext, lbl=label, prc=price):
-        await handle_uc_package(message, state, lbl, prc)
+@dp.message(F.text.startswith("325 UC"))
+async def handle_325(message: Message, state: FSMContext):
+    await handle_uc_package(message, state, "325 UC", 380)
 
-    dp.message(F.text.startswith(label))(partial(handle))
+@dp.message(F.text.startswith("385 UC"))
+async def handle_385(message: Message, state: FSMContext):
+    await handle_uc_package(message, state, "385 UC", 450)
+
+@dp.message(F.text.startswith("660 UC"))
+async def handle_660(message: Message, state: FSMContext):
+    await handle_uc_package(message, state, "660 UC", 790)
+
+@dp.message(F.text.startswith("720 UC"))
+async def handle_720(message: Message, state: FSMContext):
+    await handle_uc_package(message, state, "720 UC", 900)
+
+@dp.message(F.text.startswith("1320 UC"))
+async def handle_1320(message: Message, state: FSMContext):
+    await handle_uc_package(message, state, "1320 UC", 1580)
+
 
 
 
