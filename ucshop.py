@@ -1,3 +1,7 @@
+посмотри скрипт на наличие ошибок по поводу моего вопроса
+
+
+
 import asyncio
 import sqlite3
 from datetime import datetime, timedelta
@@ -35,10 +39,14 @@ cursor.execute("""
 conn.commit()
 
 # Добавим несколько тестовых кодов
-for label, price in [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]:
-    @dp.message(F.text.startswith(label))
-    async def _(message: Message, state: FSMContext, l=label, p=price):
-        await handle_uc_package(message, state, l, p)
+sample_data = [
+    ("60 UC", "60CODE1"), ("60 UC", "60CODE2"),
+    ("325 UC", "325CODE1"), ("325 UC", "325CODE2"),
+    ("385 UC", "385CODE1"), ("385 UC", "385CODE2"),
+    ("660 UC", "660CODE1"), ("660 UC", "660CODE2"),
+    ("720 UC", "720CODE1"), ("720 UC", "720CODE2"),
+    ("1320 UC", "1320CODE1"), ("1320 UC", "1320CODE2"),
+]
 
 # Очищаем старые данные (если были)
 cursor.execute("DELETE FROM uc_codes")
@@ -127,31 +135,7 @@ async def show_categories(message: Message):
 @dp.message(F.text == "UC Pubg Mobile")
 async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
-
-    @dp.message(F.text.startswith("60 UC"))
-    async def _(message: Message, state: FSMContext):
-        await handle_uc_package(message, state, "60 UC", 80)
-
-    @dp.message(F.text.startswith("325 UC"))
-    async def _(message: Message, state: FSMContext):
-        await handle_uc_package(message, state, "325 UC", 380)
-
-    @dp.message(F.text.startswith("385 UC"))
-    async def _(message: Message, state: FSMContext):
-        await handle_uc_package(message, state, "385 UC", 450)
-
-    @dp.message(F.text.startswith("660 UC"))
-    async def _(message: Message, state: FSMContext):
-        await handle_uc_package(message, state, "660 UC", 790)
-
-    @dp.message(F.text.startswith("720 UC"))
-    async def _(message: Message, state: FSMContext):
-        await handle_uc_package(message, state, "720 UC", 900)
-
-    @dp.message(F.text.startswith("1320 UC"))
-    async def _(message: Message, state: FSMContext):
-        await handle_uc_package(message, state, "1320 UC", 1580)
-
+    for label, price in [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]:
         cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
         count = cursor.fetchone()[0]
         kb.button(text=f"{label} | {price} RUB | {count} шт.")
@@ -464,3 +448,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
