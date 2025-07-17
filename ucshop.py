@@ -41,6 +41,7 @@ sample_data = [
     ("660 UC", "660CODE1"), ("660 UC", "660CODE2"),("660 UC", "660CODE3"), ("660 UC", "660CODE4"),
     ("720 UC", "720CODE1"), ("720 UC", "720CODE2"),("720 UC", "720CODE3"), ("720 UC", "720CODE4"),
     ("1320 UC", "1320CODE1"), ("1320 UC", "1320CODE2"),("1320 UC", "1320CODE3"), ("1320 UC", "1320CODE4"),
+]
 # Очищаем старые данные (если были)
 cursor.execute("DELETE FROM uc_codes")
 
