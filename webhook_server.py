@@ -9,7 +9,7 @@ from aiogram.enums import ParseMode
 
 app = Flask(__name__)
 
-# ЮMoney secret
+# Секрет из ЮMoney
 NOTIFICATION_SECRET = "sgtipI6iQlaXCB1XCgksTaP5"
 
 # === Проверка SHA-1 подписи ===
@@ -40,6 +40,7 @@ def yoomoney_webhook():
     if not label:
         abort(400, "Empty label")
 
+    # Подключение к базе
     conn = sqlite3.connect("users_orders.db")
     cursor = conn.cursor()
 
@@ -70,10 +71,10 @@ def yoomoney_webhook():
     conn.commit()
     conn.close()
 
-    # === Отправка в Telegram ===
+    # === Отправка сообщения в Telegram ===
     async def send_telegram():
         session = AiohttpSession()
-        bot = Bot(token="ТВОЙ_ТОКЕН", session=session, parse_mode=ParseMode.HTML)
+        bot = Bot(token="8024102805:AAEcu22cIkfe49UNNC_XlKB1mZMxFRx6aDk", session=session, parse_mode=ParseMode.HTML)
         message = f"✅ Ваш платёж подтверждён!\n🎁 Ваши UC-коды ({pack_label}):\n\n"
         message += "\n".join(f"<code>{c[1]}</code>" for c in codes)
         try:
@@ -86,5 +87,6 @@ def yoomoney_webhook():
 
     return "OK", 200
 
+# === Flask сервер для Railway ===
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
