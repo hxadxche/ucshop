@@ -6,7 +6,7 @@ import sqlite3
 app = Flask(__name__)
 
 # Секрет из настроек уведомлений ЮMoney
-NOTIFICATION_SECRET = "ваш_секрет"
+NOTIFICATION_SECRET = "sgtipI6iQlaXCB1XCgksTaP5"
 
 # === Функция для верификации SHA-1 хэша ===
 def verify_sha1(data: dict):
@@ -72,7 +72,7 @@ def yoomoney_webhook():
     from aiogram import Bot
     from aiogram.enums import ParseMode
 
-    bot = Bot(token="ТВОЙ_ТОКЕН", parse_mode=ParseMode.HTML)
+    bot = Bot(token="", parse_mode=ParseMode.HTML)
 
     text = f"✅ Ваша оплата подтверждена!\n🎁 Ваши UC-коды ({pack_label}):\n\n"
     text += "\n".join(f"<code>{c[1]}</code>" for c in codes)
