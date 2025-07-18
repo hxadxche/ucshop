@@ -1,19 +1,15 @@
-import qrcode
-from aiogram.types import FSInputFile
 import asyncio
 import sqlite3
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode
-from aiogram.client.default import DefaultBotProperties
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-import requests
 
 # Настройка логгирования
 logging.basicConfig(
@@ -76,12 +72,8 @@ if cursor.fetchone()[0] == 0:
 
 # === Bot config ===
 API_TOKEN = "8024102805:AAEcu22cIkfe49UNNC_XlKB1mZMxFRx6aDk"
-bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
-
-# Конфигурация вебхук-сервера
-WEBHOOK_URL = "https://your-webhook-server.com/yoomoney_webhook"  # Замените на реальный URL
-YOOMONEY_WALLET = "4100111899459093"  # Ваш кошелек YooMoney
 
 # === Состояния ===
 class UCState(StatesGroup):
@@ -169,7 +161,7 @@ async def send_quantity_menu(message: Message, quantity: int, unit_price: int, l
         f"<b>💰 Цена за штуку:</b> {unit_price} RUB\n"
         f"<b>📦 Количество:</b> {quantity} шт.\n"
         f"<b>💸 Общая сумма:</b> {total_price} RUB",
-        reply_markup=kb.as_markup(resize_keyboard=True)
+        reply_markup=kb.as_markup(resize_keyboard=True))
     )
 
 async def handle_uc_package(message: Message, state: FSMContext, label: str, unit_price: int):
@@ -210,8 +202,7 @@ async def confirm_order(message: Message, state: FSMContext):
     # Проверка наличия кодов
     cursor.execute(
         "SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0",
-        (label,)
-    )
+        (label,))
     available = cursor.fetchone()[0]
 
     if available < quantity:
@@ -224,8 +215,7 @@ async def confirm_order(message: Message, state: FSMContext):
             f"❌ Недостаточно UC-кодов в наличии для {label}.\n"
             f"Вы выбрали: {quantity}, доступно: {available}.\n\n"
             "Пожалуйста, выберите меньшее количество или другой пакет.",
-            reply_markup=kb.as_markup(resize_keyboard=True)
-        )
+            reply_markup=kb.as_markup(resize_keyboard=True))
         return
     
     # Сохранение заказа в БД
@@ -234,8 +224,7 @@ async def confirm_order(message: Message, state: FSMContext):
     
     cursor.execute(
         "INSERT INTO orders (user_id, pack_label, quantity, amount, status) VALUES (?, ?, ?, ?, ?)",
-        (user_id, label, quantity, total_price, "pending")
-    )
+        (user_id, label, quantity, total_price, "pending"))
     order_id = cursor.lastrowid
     conn.commit()
     
@@ -254,7 +243,7 @@ async def confirm_order(message: Message, state: FSMContext):
         f"{quantity} x {label}\n"
         f"<b>💸 К оплате:</b> {total_price} RUB\n\n"
         "Выберите способ оплаты:",
-        reply_markup=kb.as_markup(resize_keyboard=True)
+        reply_markup=kb.as_markup(resize_keyboard=True))
     )
 
 @dp.message(UCState.choosing_payment_method, F.text == "💳 Оплата переводом на карту")
@@ -271,8 +260,7 @@ async def payment_card(message: Message, state: FSMContext):
     if order_id:
         cursor.execute(
             "UPDATE orders SET payment_method = ? WHERE id = ?",
-            ("card", order_id)
-        )
+            ("card", order_id))
         conn.commit()
 
     kb = ReplyKeyboardMarkup(
@@ -343,8 +331,7 @@ async def confirm_payment(call: CallbackQuery):
     # Получение данных заказа
     cursor.execute(
         "SELECT pack_label, quantity FROM orders WHERE id = ?",
-        (order_id,)
-    )
+        (order_id,))
     order = cursor.fetchone()
     
     if not order:
@@ -356,8 +343,7 @@ async def confirm_payment(call: CallbackQuery):
     # Получение кодов
     cursor.execute(
         "SELECT id, code FROM uc_codes WHERE label = ? AND used = 0 LIMIT ?",
-        (label, quantity)
-    )
+        (label, quantity))
     codes = cursor.fetchall()
     
     if len(codes) < quantity:
@@ -368,13 +354,11 @@ async def confirm_payment(call: CallbackQuery):
     code_ids = [row[0] for row in codes]
     cursor.executemany(
         "UPDATE uc_codes SET used = 1 WHERE id = ?",
-        [(cid,) for cid in code_ids]
-    )
+        [(cid,) for cid in code_ids])
     
     cursor.execute(
         "UPDATE orders SET status = 'completed' WHERE id = ?",
-        (order_id,)
-    )
+        (order_id,))
     conn.commit()
 
     # Отправка кодов пользователю
@@ -397,15 +381,13 @@ async def reject_payment(call: CallbackQuery):
     # Обновление статуса заказа
     cursor.execute(
         "UPDATE orders SET status = 'canceled' WHERE id = ?",
-        (order_id,)
-    )
+        (order_id,))
     conn.commit()
     
     try:
         await bot.send_message(
             user_id, 
-            "❌ Ваш чек не прошёл проверку.\nЕсли вы уверены, что всё правильно — свяжитесь с @chudoo_19."
-        )
+            "❌ Ваш чек не прошёл проверку.\nЕсли вы уверены, что всё правильно — свяжитесь с @chudoo_19.")
         await call.answer("Отказ отправлен пользователю.", show_alert=True)
     except Exception as e:
         logger.error(f"Ошибка отправки сообщения: {e}")
@@ -424,13 +406,13 @@ async def payment_umoney(message: Message, state: FSMContext):
     total_price = quantity * unit_price
     order_id = data.get("order_id")
     user_id = message.from_user.id
+    now = datetime.now()
 
     # Обновление метода оплаты в заказе
     if order_id:
         cursor.execute(
             "UPDATE orders SET payment_method = ? WHERE id = ?",
-            ("yoomoney", order_id)
-        )
+            ("yoomoney", order_id))
         conn.commit()
 
     # Создаем кнопку для оплаты
@@ -480,32 +462,15 @@ async def payment_umoney(message: Message, state: FSMContext):
         f"───────────────\n"
         f"<b>Для оплаты перейдите по ссылке:</b>\n"
         f"{payment_url}\n\n"
-        f"💵 <b>Сумма оплаты:</b> {total_price} RUB\n"
-        f"⏰ <b>Время на оплату:</b> 30 минут\n"
-        f"⌛️ <b>Необходимо оплатить до:</b> {deadline.strftime('%H:%M')}",
+        f"💵 <b>Сумма оплаты:</b> {total_price} RUB",
         reply_markup=kb
     )
-
-def generate_payment_url(user_id: int, amount: float, order_id: int) -> str:
-    """Генерирует URL для оплаты через YooMoney"""
-    base_url = "https://yoomoney.ru/quickpay/confirm.xml"
-    params = {
-        "receiver": YOOMONEY_WALLET,
-        "quickpay-form": "shop",
-        "targets": f"Оплата UC кодов (заказ #{order_id})",
-        "sum": amount,
-        "label": f"{user_id}_{order_id}",
-        "paymentType": "AC",
-        "successURL": "https://t.me/your_bot"
-    }
-    return f"{base_url}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
 
 @dp.message(UCState.choosing_payment_method, F.text == "✅ Я оплатил")
 async def wait_for_umoney_check(message: Message, state: FSMContext):
     await message.answer(
         "⏳ <b>Ожидаем подтверждение оплаты от сервера...</b>\n"
-        "Вы получите сообщение автоматически, как только оплата будет подтверждена."
-    )
+        "Вы получите сообщение автоматически, как только оплата будет подтверждена.")
     await state.clear()
 
 @dp.message(F.text == "❌ Отмена")
@@ -516,8 +481,7 @@ async def cancel_any_state(message: Message, state: FSMContext):
     if order_id:
         cursor.execute(
             "UPDATE orders SET status = 'canceled' WHERE id = ?",
-            (order_id,)
-        )
+            (order_id,))
         conn.commit()
 
     await state.clear()
@@ -553,8 +517,7 @@ async def profile(message: Message):
     cursor.execute(
         "SELECT id, pack_label, quantity, amount, status, created_at "
         "FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 5", 
-        (user_id,)
-    )
+        (user_id,))
     orders = cursor.fetchall()
     
     text = (
