@@ -43,7 +43,7 @@ sample_data = [
     ("1320 UC", "1320CODE1"), ("1320 UC", "1320CODE2"),("1320 UC", "1320CODE3"), ("1320 UC", "1320CODE4"),
 ]
 # Очищаем старые данные (если были)
-cursor.execute("DELETE FROM uc_codes")
+#cursor.execute("DELETE FROM uc_codes")
 
 # Вставляем новые
 for label, code in sample_data:
