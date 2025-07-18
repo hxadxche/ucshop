@@ -19,8 +19,8 @@ logging.basicConfig(
 logger = logging.getLogger("YooMoneyWebhook")
 
 # Конфигурация из переменных окружения
-NOTIFICATION_SECRET = os.getenv("YOOMONEY_SECRET", "sgtipI6iQlaXCB1XCgksTaP5")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "YOUR_BOT_TOKEN")
+NOTIFICATION_SECRET = os.getenv("sgtipI6iQlaXCB1XCgksTaP5", "sgtipI6iQlaXCB1XCgksTaP5")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8024102805:AAEcu22cIkfe49UNNC_XlKB1mZMxFRx6aDk")
 DATABASE_PATH = os.getenv("DATABASE_PATH", "users_orders.db")
 
 # Инициализируем бота один раз при запуске
