@@ -1,4 +1,5 @@
-
+import qrcode
+from aiogram.types import FSInputFile
 import asyncio
 import sqlite3
 import logging
