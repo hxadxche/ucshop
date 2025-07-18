@@ -1,4 +1,2 @@
 aiogram==3.5.0
 Flask
-requests
-sqlite3
