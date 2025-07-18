@@ -74,7 +74,7 @@ if cursor.fetchone()[0] == 0:
     conn.commit()
 
 # === Bot config ===
-API_TOKEN = "7587423228:AAHhVNFsKeWo8ck7xdDL1U8NHzTFsqDgZBE"
+API_TOKEN = "8024102805:AAEcu22cIkfe49UNNC_XlKB1mZMxFRx6aDk"
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
@@ -432,12 +432,32 @@ async def payment_umoney(message: Message, state: FSMContext):
         )
         conn.commit()
 
-    # Генерация ссылки на оплату
-    payment_url = generate_payment_url(user_id, total_price, order_id)
-    
-    now = datetime.now()
-    deadline = now + timedelta(minutes=30)
+    # Создаем кнопку для оплаты
+    payment_url = "https://yoomoney.ru/quickpay/fundraise/button?billNumber=1BJ69PUJVS2.250718"
+    payment_keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)]
+        ]
+    )
 
+    payment_text = f"""
+    <b>📦 Товар:</b> {label}
+    <b>💰 Цена:</b> {unit_price} RUB
+    <b>📦 Кол-во:</b> {quantity} шт.
+    <b>💳 Итоговая сумма:</b> {total_price} RUB
+    <b>⏰ Время на оплату:</b> 30 минут
+    
+    Нажмите кнопку ниже для оплаты:
+    """
+
+    # Отправляем сообщение с инлайн-кнопкой
+    await message.answer(
+        payment_text,
+        reply_markup=payment_keyboard,
+        parse_mode=ParseMode.HTML
+    )
+
+    # Отправляем дополнительное сообщение с инструкцией
     kb = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="✅ Я оплатил")],
@@ -445,7 +465,11 @@ async def payment_umoney(message: Message, state: FSMContext):
         ],
         resize_keyboard=True
     )
-
+    
+    await message.answer(
+        "После завершения оплаты нажмите кнопку ниже:",
+        reply_markup=kb
+    )
     await message.answer(
         f"📦 <b>Товар:</b> {label}\n"
         f"💰 <b>Цена:</b> {unit_price} RUB\n"
