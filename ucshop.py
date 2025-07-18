@@ -64,7 +64,7 @@ cursor.execute("""
     )
 """)
 
-# Добавляем отсутствующие столбцы, если нужно
+# Добавляем отсутствующие столбцы
 if not column_exists("uc_codes", "pack_label"):
     cursor.execute("ALTER TABLE uc_codes ADD COLUMN pack_label TEXT NOT NULL DEFAULT '60 UC'")
     logger.info("Added pack_label column to uc_codes table")
@@ -76,6 +76,11 @@ if not column_exists("orders", "pack_label"):
 if not column_exists("orders", "yoomoney_label"):
     cursor.execute("ALTER TABLE orders ADD COLUMN yoomoney_label TEXT")
     logger.info("Added yoomoney_label column to orders table")
+
+# Добавляем отсутствующий столбец amount
+if not column_exists("orders", "amount"):
+    cursor.execute("ALTER TABLE orders ADD COLUMN amount REAL NOT NULL DEFAULT 0")
+    logger.info("Added amount column to orders table")
 
 conn.commit()
 
