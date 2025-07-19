@@ -85,7 +85,7 @@ class UCState(StatesGroup):
     choosing_quantity = State()
     choosing_payment_method = State()
     waiting_for_receipt_photo = State()
-     waiting_for_umoney_payment = State()
+  
 
 # === Команда /start ===
 @dp.message(F.text == "/start")
