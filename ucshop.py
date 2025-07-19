@@ -282,40 +282,6 @@ async def payment_by_card(message: Message, state: FSMContext):
 
     await state.set_state(UCState.waiting_for_receipt_photo)
 
-    # Сохраняем label в базу, чтобы webhook его нашёл
-    conn = sqlite3.connect("users_orders.db")
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE orders SET yoomoney_label = ? WHERE id = ?",
-        (yoomoney_label, order_id)
-    )
-    conn.commit()
-
-
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="✅ Я оплатил")],
-            [KeyboardButton(text="❌ Отмена")]
-        ],
-        resize_keyboard=True
-    )
-
-    await message.answer(
-        f"📦 <b>Товар:</b> {label}\n"
-        f"💰 <b>Цена:</b> {unit_price} RUB\n"
-        f"📦 <b>Кол-во:</b> {quantity} шт.\n"
-        f"⏰ <b>Время заказа:</b> {now.strftime('%Y-%m-%d %H:%M')}\n"
-        f"💸 <b>Итоговая сумма:</b> {total_price} RUB\n"
-        f"───────────────\n"
-        f"🔗 <b>Ссылка на оплату через ЮMoney:</b>\n"
-        f"<a href='{payment_url}'>💳 Оплатить сейчас</a>\n\n"
-        f"⏳ <b>Оплатить до:</b> {deadline.strftime('%H:%M')}\n"
-        f"После оплаты нажмите <b>«✅ Я оплатил»</b>.",
-        reply_markup=kb,
-        parse_mode=ParseMode.HTML
-    )
-
-    await state.set_state(UCState.choosing_payment_method)
 
 @dp.message(F.text == "Я оплатил")
 async def handle_payment_confirmation(message: Message, state: FSMContext):
