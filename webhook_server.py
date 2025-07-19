@@ -41,33 +41,33 @@ def yoomoney_webhook():
 
     # Получаем заказ по метке
     cursor.execute(
-    "SELECT label, quantity, user_id FROM orders WHERE yoomoney_label = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
-    (label,))
-
+        "SELECT label, quantity, user_id FROM orders WHERE yoomoney_label = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+        (label,)
+    )
     result = cursor.fetchone()
     if not result:
         conn.close()
         return "No matching order", 200
 
-    label, quantity, user_id = result
+    pack_label, quantity, user_id = result
+    order_id = label.split("_")[1]
 
     # Достаём коды
     cursor.execute(
-        "SELECT id, code FROM uc_codes WHERE pack_label = ? AND used = 0 LIMIT ?",
-        (label, quantity)
+        "SELECT id, code FROM uc_codes WHERE label = ? AND used = 0 LIMIT ?",
+        (pack_label, quantity)
     )
     codes = cursor.fetchall()
     if len(codes) < quantity:
         conn.close()
         return "Not enough codes", 200
 
-     order_id = label.split("_")[1]  # добавь эту строку выше
     code_ids = [c[0] for c in codes]
     cursor.executemany(
         "UPDATE uc_codes SET used = 1, order_id = ? WHERE id = ?",
         [(order_id, i) for i in code_ids]
     )
-
+    cursor.execute("UPDATE orders SET status = 'completed' WHERE yoomoney_label = ?", (label,))
     conn.commit()
 
     text = f"✅ Ваша оплата подтверждена!\n🎁 Ваши UC-коды ({pack_label}):\n\n"
