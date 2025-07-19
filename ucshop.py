@@ -180,12 +180,12 @@ async def change_quantity(message: Message, state: FSMContext):
 @dp.message(UCState.choosing_quantity, F.text == "✅ Подтверждаю")
 async def confirm_order(message: Message, state: FSMContext):
     data = await state.get_data()
-    quantity = data.get("quantity", 1)
-    unit_price = data.get("unit_price", 0)
-    label = data.get("label", "UC")
+    quantity    = data.get("quantity", 1)
+    unit_price  = data.get("unit_price", 0)
+    label       = data.get("label", "UC")
     total_price = quantity * unit_price
 
-    # ─── ПРОВЕРКА НАЛИЧИЯ ────────────────────────────────
+    # Проверка наличия
     cursor.execute(
         "SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0",
         (label,)
@@ -197,26 +197,28 @@ async def confirm_order(message: Message, state: FSMContext):
         kb.button(text="⬅️ Назад ко всем категориям")
         kb.button(text="❌ Отмена")
         kb.adjust(1)
-
         await message.answer(
             f"❌ Недостаточно UC-кодов в наличии для {label}.\n"
-            f"Вы выбрали: {quantity}, доступно: {available}.\n\n"
-            "Пожалуйста, выберите меньшее количество или другой пакет.",
+            f"Вы выбрали: {quantity}, доступно: {available}.",
             reply_markup=kb.as_markup(resize_keyboard=True)
         )
         return
 
-    # ─── СОХРАНЕНИЕ ЗАКАЗА ───────────────────────────────
+    # Сохраняем заказ
     user_id = message.from_user.id
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
     cursor.execute(
-        "INSERT INTO orders (user_id, pack_label, quantity, amount, created_at) VALUES (?, ?, ?, ?, ?)",
-        (user_id, label, quantity, total_price, now_str)
+        "INSERT INTO orders (user_id, pack_label, quantity, amount) VALUES (?, ?, ?, ?)",
+        (user_id, label, quantity, total_price)
     )
     conn.commit()
 
-    # — Установка состояния и кнопок оплаты —
+    # Получаем ID последнего заказа
+    order_id = cursor.lastrowid
+
+    # Сохраняем в состояние
+    await state.update_data(order_id=order_id)
+
+    # Выбор способа оплаты
     await state.set_state(UCState.choosing_payment_method)
     kb = ReplyKeyboardBuilder()
     kb.button(text="💳 Оплата переводом на карту")
@@ -231,6 +233,63 @@ async def confirm_order(message: Message, state: FSMContext):
         "Выберите способ оплаты:",
         reply_markup=kb.as_markup(resize_keyboard=True)
     )
+@dp.message(UCState.choosing_quantity, F.text == "✅ Подтверждаю")
+async def confirm_order(message: Message, state: FSMContext):
+    data = await state.get_data()
+    quantity    = data.get("quantity", 1)
+    unit_price  = data.get("unit_price", 0)
+    label       = data.get("label", "UC")
+    total_price = quantity * unit_price
+
+    # Проверка наличия
+    cursor.execute(
+        "SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0",
+        (label,)
+    )
+    available = cursor.fetchone()[0]
+
+    if available < quantity:
+        kb = ReplyKeyboardBuilder()
+        kb.button(text="⬅️ Назад ко всем категориям")
+        kb.button(text="❌ Отмена")
+        kb.adjust(1)
+        await message.answer(
+            f"❌ Недостаточно UC-кодов в наличии для {label}.\n"
+            f"Вы выбрали: {quantity}, доступно: {available}.",
+            reply_markup=kb.as_markup(resize_keyboard=True)
+        )
+        return
+
+    # Сохраняем заказ
+    user_id = message.from_user.id
+    cursor.execute(
+        "INSERT INTO orders (user_id, pack_label, quantity, amount) VALUES (?, ?, ?, ?)",
+        (user_id, label, quantity, total_price)
+    )
+    conn.commit()
+
+    # Получаем ID последнего заказа
+    order_id = cursor.lastrowid
+
+    # Сохраняем в состояние
+    await state.update_data(order_id=order_id)
+
+    # Выбор способа оплаты
+    await state.set_state(UCState.choosing_payment_method)
+    kb = ReplyKeyboardBuilder()
+    kb.button(text="💳 Оплата переводом на карту")
+    kb.button(text="🟣 Оплата через Ю-Money")
+    kb.button(text="❌ Отмена")
+    kb.adjust(1)
+
+    await message.answer(
+        f"<b>🧾 Вы выбрали:</b>\n"
+        f"{quantity} x {label}\n"
+        f"<b>💸 К оплате:</b> {total_price} RUB\n\n"
+        "Выберите способ оплаты:",
+        reply_markup=kb.as_markup(resize_keyboard=True)
+    )
+
 
 @dp.message(UCState.choosing_payment_method, F.text == "💳 Оплата переводом на карту")
 async def payment_by_card(message: Message, state: FSMContext):
