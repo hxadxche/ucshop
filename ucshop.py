@@ -17,6 +17,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 # === SQLite ===
 conn = sqlite3.connect("users_orders.db")
 cursor = conn.cursor()
+
+# Пользователи
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
@@ -25,15 +27,35 @@ cursor.execute("""
         reg_date TEXT
     )
 """)
+
+# UC-коды
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS uc_codes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         label TEXT,
-        code TEXT,
-        used INTEGER DEFAULT 0
+        code TEXT UNIQUE,
+        used INTEGER DEFAULT 0,
+        order_id INTEGER
     )
 """)
+
+# Заказы
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        pack_label TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'completed', 'cancelled')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        yoomoney_label TEXT UNIQUE
+    )
+""")
+
 conn.commit()
+conn.close()
+
 sample_data = [
     ("60 UC", "60CODE1"), ("60 UC", "60CODE2"),("60 UC", "60CODE3"),("60 UC", "60CODE4"),("60 UC", "60CODE5"),
     ("325 UC", "325CODE1"), ("325 UC", "325CODE2"),("325 UC", "325CODE3"), ("325 UC", "325CODE4"),
@@ -237,14 +259,52 @@ async def confirm_order(message: Message, state: FSMContext):
 async def payment_umoney(message: Message, state: FSMContext):
     data = await state.get_data()
     print(f"[DEBUG] Payment state data: {data}")
-    label = data.get("label", "UC")
-    unit_price = data.get("unit_price", 0)
+
+    order_id = data.get("order_id")
+    if not order_id:
+        await message.answer("❌ Сначала подтвердите заказ кнопкой <b>«✅ Подтверждаю»</b>!", parse_mode=ParseMode.HTML)
+        return
+
     quantity = data.get("quantity", 1)
+    unit_price = data.get("unit_price", 0)
+    label = data.get("label", "UC")
     total_price = quantity * unit_price
     now = datetime.now()
+    deadline = now + timedelta(minutes=30)
+    user_id = message.from_user.id
+
+    # 👇 Генерация уникального label для webhook
+    yoomoney_label = f"{user_id}_{order_id}"
+
+    # 🟣 ЮMoney кошелек
+    YOOMONEY_WALLET = "410011812000000"  # 🔁 Замени на свой кошелек
+
+    # ✅ Ссылка на оплату
+    payment_url = (
+        f"https://yoomoney.ru/quickpay/confirm.xml?"
+        f"receiver={YOOMONEY_WALLET}&"
+        f"quickpay-form=shop&"
+        f"targets=UC%20заказ%20#{order_id}&"
+        f"sum={total_price}&"
+        f"label={yoomoney_label}&"
+        f"paymentType=AC"
+    )
+
+    # Сохраняем label в базу, чтобы webhook его нашёл
+    conn = sqlite3.connect("users_orders.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE orders SET yoomoney_label = ? WHERE id = ?",
+        (yoomoney_label, order_id)
+    )
+    conn.commit()
+    conn.close()
 
     kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Я оплатил")], [KeyboardButton(text="❌ Отмена")]],
+        keyboard=[
+            [KeyboardButton(text="✅ Я оплатил")],
+            [KeyboardButton(text="❌ Отмена")]
+        ],
         resize_keyboard=True
     )
 
@@ -254,16 +314,16 @@ async def payment_umoney(message: Message, state: FSMContext):
         f"📦 <b>Кол-во:</b> {quantity} шт.\n"
         f"⏰ <b>Время заказа:</b> {now.strftime('%Y-%m-%d %H:%M')}\n"
         f"💸 <b>Итоговая сумма:</b> {total_price} RUB\n"
-        "============================\n"
-        f"⚠️ <b>ПЕРЕВОДИТЬ СТРОГО УКАЗАННУЮ СУММУ</b>\n"
-        "Если вы перевели не туда — деньги не возвращаются.\n\n"
-        f"Для оплаты переведите <b>{total_price} RUB</b> на карту:\n"
-        "<code>2202 2084 3750 2835</code>\n"
-        "СБП - Альфа Банк: <code>+79648469752</code>\n\n"
-        "<b>Сохраните чек!</b>\n"
-        "После оплаты нажмите на кнопку <b>«Я оплатил»</b> и отправьте фото.",
-        reply_markup=kb
+        f"───────────────\n"
+        f"🔗 <b>Ссылка на оплату через ЮMoney:</b>\n"
+        f"<a href='{payment_url}'>💳 Оплатить сейчас</a>\n\n"
+        f"⏳ <b>Оплатить до:</b> {deadline.strftime('%H:%M')}\n"
+        f"После оплаты нажмите <b>«✅ Я оплатил»</b>.",
+        reply_markup=kb,
+        parse_mode=ParseMode.HTML
     )
+
+    await state.set_state(UCState.choosing_payment_method)
 
 @dp.message(F.text == "Я оплатил")
 async def handle_payment_confirmation(message: Message, state: FSMContext):
