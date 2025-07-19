@@ -28,15 +28,14 @@ def verify_sha1(data: dict):
 @app.route("/yoomoney_webhook", methods=["POST"])
 def yoomoney_webhook():
     data = request.form.to_dict()
+    print("\n=== YOOMONEY HOOK RECEIVED ===")
+    print(data)
 
-    # 🔽 Вот сюда вставляешь
-    print("=== YOOMONEY HOOK RECEIVED ===")
-    print(data)  # Покажет всё, что пришло от ЮMoney
-
-        print(">> Проверка SHA1")
+    print(">> Проверка SHA1")
     if not verify_sha1(data):
         print("❌ Ошибка SHA1: неверная подпись")
         abort(400, "Invalid hash")
+
 
 
     label = data.get("label")
