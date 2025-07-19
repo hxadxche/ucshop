@@ -432,15 +432,15 @@ pay_kb = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_order")]
 ])
 await message.answer(
-        f"<b>📦 Товар:</b> {label}\n"
-        f"<b>💰 Цена за единицу:</b> {unit_price} RUB\n"
-        f"<b>📦 Количество:</b> {quantity} шт.\n"
-        f"<b>💸 Итоговая сумма:</b> {total_price} RUB\n"
-        f"<b>⏰ Время на оплату:</b> 30 минут\n\n"
-        f"Нажмите кнопку ниже для оплаты:",
-        reply_markup=pay_kb
-    )
-        await state.set_state(UCState.waiting_for_umoney_payment)
+    f"<b>📦 Товар:</b> {label}\n"
+    f"<b>💰 Цена за единицу:</b> {unit_price} RUB\n"
+    f"<b>📦 Количество:</b> {quantity} шт.\n"
+    f"<b>💸 Итоговая сумма:</b> {total_price} RUB\n"
+    f"<b>⏰ Время на оплату:</b> 30 минут\n\n"
+    f"Нажмите кнопку ниже для оплаты:",
+    reply_markup=pay_kb
+)
+await state.set_state(UCState.waiting_for_umoney_payment)
 
 
 
