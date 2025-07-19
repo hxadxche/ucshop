@@ -166,7 +166,7 @@ uc_packages = [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790),
 
 for label, price in uc_packages:
     def register_handler(lbl, prc):
-        @dp.message(F.text == f"{lbl} | {prc} RUB |")
+        @dp.message(F.text.startswith(lbl))
         async def handle(message: Message, state: FSMContext):
             await handle_uc_package(message, state, lbl, prc)
     register_handler(label, price)
