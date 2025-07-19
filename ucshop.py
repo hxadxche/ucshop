@@ -439,21 +439,6 @@ async def payment_umoney(message: Message, state: FSMContext):
         f"Нажмите кнопку ниже для оплаты:",
         reply_markup=pay_kb
     )
-
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="✅ Я оплатил")],
-            [KeyboardButton(text="❌ Отмена")]
-        ],
-        resize_keyboard=True
-    )
-
-    await message.answer(
-        f"⌛️ <b>Необходимо оплатить до:</b> {deadline.strftime('%H:%M')}\n"
-        "После оплаты нажмите «✅ Я оплатил» и дождитесь автоматической проверки.",
-        reply_markup=kb
-    )
-
     await state.set_state(UCState.waiting_for_umoney_payment)
 
 
