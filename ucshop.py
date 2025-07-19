@@ -85,6 +85,7 @@ class UCState(StatesGroup):
     choosing_quantity = State()
     choosing_payment_method = State()
     waiting_for_receipt_photo = State()
+     waiting_for_umoney_payment = State()
 
 # === Команда /start ===
 @dp.message(F.text == "/start")
@@ -450,7 +451,8 @@ async def payment_umoney(message: Message, state: FSMContext):
         reply_markup=kb
     )
 
-    await state.set_state(UCState.choosing_payment_method)
+    await state.set_state(UCState.waiting_for_umoney_payment)
+
 
 
 @dp.message(UCState.choosing_payment_method, F.text == "✅ Я оплатил")
