@@ -33,26 +33,41 @@ def yoomoney_webhook():
     print("=== YOOMONEY HOOK RECEIVED ===")
     print(data)  # Покажет всё, что пришло от ЮMoney
 
+        print(">> Проверка SHA1")
     if not verify_sha1(data):
+        print("❌ Ошибка SHA1: неверная подпись")
         abort(400, "Invalid hash")
 
+
     label = data.get("label")
+      label = data.get("label")
     if not label:
+        print("❌ Метка пустая, заказ не найден")
         abort(400, "Label is empty")
+
     conn = sqlite3.connect("users_orders.db")
     cursor = conn.cursor()
 
     # Получаем заказ по метке
     cursor.execute(
-        "SELECT label, quantity, user_id FROM orders WHERE yoomoney_label = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
-        (label,)
-    )
+        "SELECT label, quantity, user_id, price FROM orders WHERE yoomoney_label = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+        (label,))
     result = cursor.fetchone()
     if not result:
+        print("❌ Не найден заказ с такой меткой:", label)
         conn.close()
         return "No matching order", 200
 
-    pack_label, quantity, user_id = result
+    pack_label, quantity, user_id, expected_price = result
+    print(f"✅ Найден заказ: label={label}, quantity={quantity}, user_id={user_id}, ожидаемая сумма={expected_price}")
+    paid_price = float(data.get("amount", "0"))
+    if paid_price < expected_price:
+        print(f"❌ Недостаточная сумма оплаты: оплачено {paid_price}, ожидалось {expected_price}")
+        conn.close()
+        return "Amount too low", 400
+    else:
+        print(f"💸 Сумма оплаты корректна: {paid_price} руб.")
+
     order_id = label.split("_")[1]
 
     # Достаём коды
@@ -76,12 +91,15 @@ def yoomoney_webhook():
     text = f"✅ Ваша оплата подтверждена!\n🎁 Ваши UC-коды ({pack_label}):\n\n"
     text += "\n".join(f"<code>{c[1]}</code>" for c in codes)
 
-    async def send_codes():
-        bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
+      async def send_codes():
+        bot = Bot(token=8024102805:AAEcu22cIkfe49UNNC_XlKB1mZMxFRx6aDk, parse_mode=ParseMode.HTML)
         try:
             await bot.send_message(chat_id=user_id, text=text)
+        except Exception as e:
+            print(f"❌ Ошибка при отправке сообщения пользователю {user_id}: {e}")
         finally:
             await bot.session.close()
+
 
     asyncio.run(send_codes())
 
