@@ -413,8 +413,9 @@ async def payment_umoney(message: Message, state: FSMContext):
         await message.answer("❌ Ошибка при создании заказа.")
         return
 
-    # Генерация ссылки на оплату
-   payment_url = (
+
+  # Пример внутри функции или обработчика
+payment_url = (
     f"https://yoomoney.ru/quickpay/confirm.xml?"
     f"receiver={YOOMONEY_WALLET}&"
     f"quickpay-form=shop&"
@@ -424,6 +425,7 @@ async def payment_umoney(message: Message, state: FSMContext):
     f"notification_url=https://telegram-bot-production-d0ad.up.railway.app/yoomoney_webhook&"
     f"paymentType=AC"
 )
+
 
 
     # Кнопка для оплаты
