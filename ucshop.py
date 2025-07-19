@@ -361,9 +361,48 @@ async def payment_umoney(message: Message, state: FSMContext):
     unit_price = data.get("unit_price", 0)
     label = data.get("label", "UC")
     total_price = quantity * unit_price
-
+    order_id = data.get("order_id")
+    user_id = message.from_user.id
     now = datetime.now()
     deadline = now + timedelta(minutes=30)
+
+    # Сохраняем уникальный label для webhook
+    if order_id:
+        yoomoney_label = f"{user_id}_{order_id}"
+        cursor.execute(
+            "UPDATE orders SET payment_method = ?, yoomoney_label = ? WHERE id = ?",
+            ("yoomoney", yoomoney_label, order_id))
+        conn.commit()
+    else:
+        await message.answer("❌ Ошибка при создании заказа.")
+        return
+
+    # Ссылка на оплату с webhook URL
+    payment_url = (
+        f"https://yoomoney.ru/quickpay/confirm.xml?"
+        f"receiver={YOOMONEY_WALLET}&"
+        f"quickpay-form=shop&"
+        f"targets=Оплата UC кодов (заказ #{order_id})&"
+        f"sum={total_price}&"
+        f"label={yoomoney_label}&"
+        f"notification_url=https://ucshop.up.railway.app/yoomoney_webhook&"
+        f"paymentType=AC"
+    )
+
+    # Кнопка на оплату
+    pay_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)]
+    ])
+
+    await message.answer(
+        f"<b>📦 Товар:</b> {label}\n"
+        f"<b>💰 Цена за единицу:</b> {unit_price} RUB\n"
+        f"<b>📦 Количество:</b> {quantity} шт.\n"
+        f"<b>💸 Итоговая сумма:</b> {total_price} RUB\n"
+        f"<b>⏰ Время на оплату:</b> 30 минут\n\n"
+        f"Нажмите кнопку ниже для оплаты:",
+        reply_markup=pay_kb
+    )
 
     kb = ReplyKeyboardMarkup(
         keyboard=[
@@ -374,21 +413,14 @@ async def payment_umoney(message: Message, state: FSMContext):
     )
 
     await message.answer(
-        f"📦 <b>Товар:</b> {label}\n"
-        f"💰 <b>Цена:</b> {unit_price} RUB\n"
-        f"📦 <b>Кол-во:</b> {quantity} шт.\n"
-        f"🕒 <b>Время заказа:</b> {now.strftime('%Y-%m-%d %H:%M')}\n"
-        f"💳 <b>Итоговая сумма:</b> {total_price} RUB\n"
-        f"───────────────\n"
-        f"<b>Для оплаты перейдите по ссылке:</b>\n"
-        f"https://yoomoney.ru/quickpay/fundraise/button?billNumber=1BJ69PUJVS2.250718&"
-        f"💵 <b>Сумма оплаты:</b> {total_price} RUB\n"
-        f"⏰ <b>Время на оплату:</b> 30 минут\n"
-        f"⌛️ <b>Необходимо оплатить до:</b> {deadline.strftime('%H:%M')}",
+        f"⌛️ <b>Необходимо оплатить до:</b> {deadline.strftime('%H:%M')}\n"
+        "После оплаты нажмите «✅ Я оплатил» и дождитесь автоматической проверки.",
         reply_markup=kb
     )
 
-    await state.set_state(UCState.choosing_payment_method)  # ВАЖНО: это нужно, чтобы сработал следующий хендлер
+    await state.set_state(UCState.choosing_payment_method)
+
+
 @dp.message(UCState.choosing_payment_method, F.text == "✅ Я оплатил")
 async def wait_for_umoney_check(message: Message, state: FSMContext):
     await message.answer(
@@ -396,6 +428,7 @@ async def wait_for_umoney_check(message: Message, state: FSMContext):
         "Вы получите сообщение автоматически, как только оплата будет подтверждена."
     )
     await state.clear()
+
 
 @dp.message(F.text == "❌ Отмена")
 async def cancel_any_state(message: Message, state: FSMContext):
