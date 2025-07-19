@@ -165,11 +165,10 @@ async def handle_uc_package(message: Message, state: FSMContext, label: str, uni
 uc_packages = [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]
 
 for label, price in uc_packages:
-    def register_handler(lbl, prc):
-        @dp.message(F.text.startswith(lbl))
-        async def handle(message: Message, state: FSMContext):
-            await handle_uc_package(message, state, lbl, prc)
-    register_handler(label, price)
+    @dp.message(F.text.startswith(label))
+    async def handle(message: Message, state: FSMContext, lbl=label, prc=price):
+        await handle_uc_package(message, state, lbl, prc)
+
 
 @dp.message(UCState.choosing_quantity, F.text.in_({"+1", "+3", "+5", "-1", "-3", "-5"}))
 async def change_quantity(message: Message, state: FSMContext):
