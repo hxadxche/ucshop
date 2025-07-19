@@ -270,16 +270,19 @@ async def payment_by_card(message: Message, state: FSMContext):
 
 
 
-@dp.message(F.text == "Я оплатил")
+@dp.message(F.text == "✅ Я оплатил")
 async def handle_payment_confirmation(message: Message, state: FSMContext):
-    # Запрашиваем фото чека только после нажатия кнопки «Я оплатил»
-    await message.answer("📸 Пожалуйста, отправьте фото чека (скриншот подтверждения перевода).")
+    # Отправляем сообщение, что пользователь оплатил
+    await message.answer("💳 Вы подтвердили оплату! Пожалуйста, отправьте фото чека (скриншот подтверждения перевода).")
+
+    # Переходим в состояние ожидания фото
     await state.set_state(UCState.waiting_for_receipt_photo)
+
 
 
 @dp.message(UCState.waiting_for_receipt_photo, F.photo)
 async def handle_receipt_photo(message: Message, state: FSMContext):
-    ADMIN_ID = 1001953510
+    ADMIN_ID = 1001953510  # Твой ID
     user = message.from_user
     caption = (
         f"📩 Новый платёж по карте!\n\n"
@@ -293,15 +296,20 @@ async def handle_receipt_photo(message: Message, state: FSMContext):
         [InlineKeyboardButton(text="❌ Отказ", callback_data=f"reject_{user.id}")]
     ])
 
+    # Отправляем фото администратору
     await bot.send_photo(
         chat_id=ADMIN_ID,
-        photo=message.photo[-1].file_id,
+        photo=message.photo[-1].file_id,  # Фото чека
         caption=caption,
         reply_markup=keyboard
     )
 
+    # Сообщаем пользователю, что чек отправлен на проверку
     await message.answer("✅ Чек отправлен администратору на проверку. Мы сообщим, как только он подтвердит оплату.")
+
+    # Очищаем состояние
     await state.clear()
+
 
 
 @dp.callback_query(F.data.startswith("confirm_"))
