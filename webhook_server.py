@@ -29,13 +29,16 @@ def verify_sha1(data: dict):
 def yoomoney_webhook():
     data = request.form.to_dict()
 
+    # 🔽 Вот сюда вставляешь
+    print("=== YOOMONEY HOOK RECEIVED ===")
+    print(data)  # Покажет всё, что пришло от ЮMoney
+
     if not verify_sha1(data):
         abort(400, "Invalid hash")
 
     label = data.get("label")
     if not label:
         abort(400, "Label is empty")
-
     conn = sqlite3.connect("users_orders.db")
     cursor = conn.cursor()
 
