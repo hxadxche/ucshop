@@ -61,10 +61,13 @@ def yoomoney_webhook():
         conn.close()
         return "Not enough codes", 200
 
-    code_ids = [c[0] for c in codes]  
-    order_id = label.split("_")[1]
-   cursor.executemany("UPDATE uc_codes SET used = 1, order_id = ? WHERE id = ?", [(order_id, i) for i in code_ids])
-    cursor.execute("UPDATE orders SET status = 'completed' WHERE yoomoney_label = ?", (label,))
+     order_id = label.split("_")[1]  # добавь эту строку выше
+    code_ids = [c[0] for c in codes]
+    cursor.executemany(
+        "UPDATE uc_codes SET used = 1, order_id = ? WHERE id = ?",
+        [(order_id, i) for i in code_ids]
+    )
+
     conn.commit()
 
     text = f"✅ Ваша оплата подтверждена!\n🎁 Ваши UC-коды ({pack_label}):\n\n"
