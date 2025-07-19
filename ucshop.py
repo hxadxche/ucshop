@@ -415,6 +415,7 @@ async def payment_umoney(message: Message, state: FSMContext):
 
 
   # Пример внутри функции или обработчика
+# внутри async def или def:
 payment_url = (
     f"https://yoomoney.ru/quickpay/confirm.xml?"
     f"receiver={YOOMONEY_WALLET}&"
@@ -422,16 +423,14 @@ payment_url = (
     f"targets=Оплата UC кодов (заказ #{order_id})&"
     f"sum={total_price}&"
     f"label={yoomoney_label}&"
-    f"notification_url=https://telegram-bot-production-d0ad.up.railway.app/yoomoney_webhook&"
+    f"notification_url=https://твой-домен/yoomoney_webhook&"
     f"paymentType=AC"
 )
 
-
-
-    # Кнопка для оплаты
-    pay_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)]
-    ])
+pay_kb = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)],
+    [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_order")]
+])
 
     await message.answer(
         f"<b>📦 Товар:</b> {label}\n"
