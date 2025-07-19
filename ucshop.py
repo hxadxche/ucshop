@@ -414,45 +414,7 @@ async def invalid_receipt(message: Message):
 
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-@dp.message(UCState.choosing_payment_method, F.text == "🟣 Оплата через Ю-Money")
-async def payment_umoney(message: Message, state: FSMContext):
-    data = await state.get_data()
-    quantity = data.get("quantity", 1)
-    unit_price = data.get("unit_price", 0)
-    label = data.get("label", "UC")
-    total_price = quantity * unit_price
-    order_id = data.get("order_id")
-    user_id = message.from_user.id
-    now = datetime.now()
-    deadline = now + timedelta(minutes=30)
 
-    # Сохраняем уникальный label для webhook
-    if order_id:
-        yoomoney_label = f"{user_id}_{order_id}"
-        cursor.execute(
-            "UPDATE orders SET payment_method = ?, yoomoney_label = ? WHERE id = ?",
-            ("yoomoney", yoomoney_label, order_id))
-        conn.commit()
-    else:
-        await message.answer("❌ Ошибка при создании заказа.")
-        return
-
-    # Ссылка на оплату с webhook URL
-    payment_url = (
-        f"https://yoomoney.ru/quickpay/confirm.xml?"
-        f"receiver={YOOMONEY_WALLET}&"
-        f"quickpay-form=shop&"
-        f"targets=Оплата UC кодов (заказ #{order_id})&"
-        f"sum={total_price}&"
-        f"label={yoomoney_label}&"
-        f"notification_url=https://ucshop.up.railway.app/yoomoney_webhook&"
-        f"paymentType=AC"
-    )
-
-    # Кнопка на оплату
-    pay_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)]
-    ])
 
     await message.answer(
         f"<b>📦 Товар:</b> {label}\n"
