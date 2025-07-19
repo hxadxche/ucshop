@@ -431,8 +431,7 @@ pay_kb = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)],
     [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_order")]
 ])
-
-    await message.answer(
+await message.answer(
         f"<b>📦 Товар:</b> {label}\n"
         f"<b>💰 Цена за единицу:</b> {unit_price} RUB\n"
         f"<b>📦 Количество:</b> {quantity} шт.\n"
