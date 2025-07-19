@@ -440,7 +440,7 @@ await message.answer(
         f"Нажмите кнопку ниже для оплаты:",
         reply_markup=pay_kb
     )
-await state.set_state(UCState.waiting_for_umoney_payment)
+        await state.set_state(UCState.waiting_for_umoney_payment)
 
 
 
