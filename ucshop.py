@@ -256,7 +256,7 @@ async def payment_by_card(message: Message, state: FSMContext):
         f"<b>❗️ Обязательно отправьте фото чека после оплаты</b>."
     )
 
-    # 👉 ВОТ ЭТА ЧАСТЬ — новая клавиатура:
+    # Клавиатура для подтверждения оплаты
     kb = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="✅ Я оплатил")],
@@ -269,10 +269,13 @@ async def payment_by_card(message: Message, state: FSMContext):
     await state.set_state(UCState.waiting_for_receipt_photo)
 
 
+
 @dp.message(F.text == "Я оплатил")
 async def handle_payment_confirmation(message: Message, state: FSMContext):
+    # Запрашиваем фото чека только после нажатия кнопки «Я оплатил»
     await message.answer("📸 Пожалуйста, отправьте фото чека (скриншот подтверждения перевода).")
     await state.set_state(UCState.waiting_for_receipt_photo)
+
 
 @dp.message(UCState.waiting_for_receipt_photo, F.photo)
 async def handle_receipt_photo(message: Message, state: FSMContext):
