@@ -54,7 +54,6 @@ cursor.execute("""
 """)
 
 conn.commit()
-conn.close()
 
 sample_data = [
     ("60 UC", "60CODE1"), ("60 UC", "60CODE2"),("60 UC", "60CODE3"),("60 UC", "60CODE4"),("60 UC", "60CODE5"),
