@@ -413,34 +413,34 @@ async def payment_umoney(message: Message, state: FSMContext):
         await message.answer("❌ Ошибка при создании заказа.")
         return
 
+    # Генерация ссылки на оплату
+    payment_url = (
+        f"https://yoomoney.ru/quickpay/confirm.xml?"
+        f"receiver={YOOMONEY_WALLET}&"
+        f"quickpay-form=shop&"
+        f"targets=Оплата UC кодов (заказ #{order_id})&"
+        f"sum={total_price}&"
+        f"label={yoomoney_label}&"
+        f"notification_url=https://твой-домен/yoomoney_webhook&"
+        f"paymentType=AC"
+    )
 
-  # Пример внутри функции или обработчика
-# внутри async def или def:
-payment_url = (
-    f"https://yoomoney.ru/quickpay/confirm.xml?"
-    f"receiver={YOOMONEY_WALLET}&"
-    f"quickpay-form=shop&"
-    f"targets=Оплата UC кодов (заказ #{order_id})&"
-    f"sum={total_price}&"
-    f"label={yoomoney_label}&"
-    f"notification_url=https://твой-домен/yoomoney_webhook&"
-    f"paymentType=AC"
-)
+    pay_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)],
+        [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_order")]
+    ])
 
-pay_kb = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)],
-    [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_order")]
-])
-await message.answer(
-    f"<b>📦 Товар:</b> {label}\n"
-    f"<b>💰 Цена за единицу:</b> {unit_price} RUB\n"
-    f"<b>📦 Количество:</b> {quantity} шт.\n"
-    f"<b>💸 Итоговая сумма:</b> {total_price} RUB\n"
-    f"<b>⏰ Время на оплату:</b> 30 минут\n\n"
-    f"Нажмите кнопку ниже для оплаты:",
-    reply_markup=pay_kb
-)
-await state.set_state(UCState.waiting_for_umoney_payment)
+    await message.answer(
+        f"<b>📦 Товар:</b> {label}\n"
+        f"<b>💰 Цена за единицу:</b> {unit_price} RUB\n"
+        f"<b>📦 Количество:</b> {quantity} шт.\n"
+        f"<b>💸 Итоговая сумма:</b> {total_price} RUB\n"
+        f"<b>⏰ Время на оплату:</b> 30 минут\n\n"
+        f"Нажмите кнопку ниже для оплаты:",
+        reply_markup=pay_kb
+    )
+
+    await state.set_state(UCState.waiting_for_umoney_payment)
 
 
 
