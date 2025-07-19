@@ -233,9 +233,10 @@ async def confirm_order(message: Message, state: FSMContext):
         reply_markup=kb.as_markup(resize_keyboard=True)
     )
 
-@dp.message(UCState.choosing_payment_method, F.text == "💳 Оплата переводом на карту")
-async def payment_card(message: Message, state: FSMContext):
+@dp.message(UCState.choosing_payment_method, F.text == "🟣 Оплата через Ю-Money")
+async def payment_umoney(message: Message, state: FSMContext):
     data = await state.get_data()
+    print(f"[DEBUG] Payment state data: {data}")
     label = data.get("label", "UC")
     unit_price = data.get("unit_price", 0)
     quantity = data.get("quantity", 1)
