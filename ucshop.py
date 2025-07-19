@@ -324,9 +324,9 @@ async def confirm_payment(call: CallbackQuery):
 
     # Получаем последний заказ
     cursor.execute(
-        "SELECT label, quantity FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
-        (user_id,)
-    )
+    "SELECT label, quantity FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+    (user_id,)
+)
     order = cursor.fetchone()
     if not order:
         await call.answer("❌ Заказ не найден.", show_alert=True)
