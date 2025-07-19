@@ -50,6 +50,12 @@ cursor.execute("""
         yoomoney_label TEXT UNIQUE
     )
 """)
+# Добавляем колонку yoomoney_label, если её ещё нет
+try:
+    cursor.execute("ALTER TABLE orders ADD COLUMN yoomoney_label TEXT UNIQUE")
+    conn.commit()
+except sqlite3.OperationalError:
+    pass  # колонка уже существует
 
 
 conn.commit()
