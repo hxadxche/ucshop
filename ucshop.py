@@ -282,6 +282,12 @@ async def handle_payment_confirmation(message: Message, state: FSMContext):
 
 @dp.message(UCState.waiting_for_receipt_photo, F.photo)
 async def handle_receipt_photo(message: Message, state: FSMContext):
+    # Проверка, что фотография есть
+    photo = message.photo[-1] if message.photo else None
+    if not photo:
+        await message.answer("❌ Пожалуйста, отправьте фото чека.")
+        return
+
     ADMIN_ID = 1001953510  # Твой ID
     user = message.from_user
     caption = (
@@ -299,7 +305,7 @@ async def handle_receipt_photo(message: Message, state: FSMContext):
     # Отправляем фото администратору
     await bot.send_photo(
         chat_id=ADMIN_ID,
-        photo=message.photo[-1].file_id,  # Фото чека
+        photo=photo.file_id,  # Фото чека
         caption=caption,
         reply_markup=keyboard
     )
