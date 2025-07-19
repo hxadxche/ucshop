@@ -11,6 +11,8 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+# Твой ЮMoney кошелек (замени на свой номер)
+YOOMONEY_WALLET = "4100111899459093"
 
 # === SQLite ===
 conn = sqlite3.connect("users_orders.db")
