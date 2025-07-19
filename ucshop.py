@@ -211,7 +211,6 @@ cursor.execute(
     "INSERT INTO orders (user_id, pack_label, quantity, amount) VALUES (?, ?, ?, ?)",
     (user_id, label, quantity, total_price)
 )
-
     conn.commit()
 
     # Получаем ID последнего заказа
