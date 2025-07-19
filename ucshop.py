@@ -205,14 +205,13 @@ async def confirm_order(message: Message, state: FSMContext):
         )
         return
 
-    # Сохраняем заказ
+        # Сохраняем заказ
     user_id = message.from_user.id
-cursor.execute(
-    "INSERT INTO orders (user_id, pack_label, quantity, amount) VALUES (?, ?, ?, ?)",
-    (user_id, label, quantity, total_price)
-)
+    cursor.execute(
+        "INSERT INTO orders (user_id, pack_label, quantity, amount) VALUES (?, ?, ?, ?)",
+        (user_id, label, quantity, total_price)
+    )
     conn.commit()
-
     # Получаем ID последнего заказа
     order_id = cursor.lastrowid
 
