@@ -253,40 +253,34 @@ async def confirm_order(message: Message, state: FSMContext):
         reply_markup=kb.as_markup(resize_keyboard=True)
     )
 
-@dp.message(UCState.choosing_payment_method, F.text == "🟣 Оплата через Ю-Money")
-async def payment_umoney(message: Message, state: FSMContext):
+@dp.message(UCState.choosing_payment_method, F.text == "💳 Оплата переводом на карту")
+async def payment_by_card(message: Message, state: FSMContext):
     data = await state.get_data()
-    print(f"[DEBUG] Payment state data: {data}")
-
-    order_id = data.get("order_id")
-    if not order_id:
-        await message.answer("❌ Сначала подтвердите заказ кнопкой <b>«✅ Подтверждаю»</b>!", parse_mode=ParseMode.HTML)
-        return
-
     quantity = data.get("quantity", 1)
     unit_price = data.get("unit_price", 0)
     label = data.get("label", "UC")
     total_price = quantity * unit_price
     now = datetime.now()
-    deadline = now + timedelta(minutes=30)
-    user_id = message.from_user.id
 
-    # 👇 Генерация уникального label для webhook
-    yoomoney_label = f"{user_id}_{order_id}"
-
-    # 🟣 ЮMoney кошелек
-    YOOMONEY_WALLET = "410011812000000"  # 🔁 Замени на свой кошелек
-
-    # ✅ Ссылка на оплату
-    payment_url = (
-        f"https://yoomoney.ru/quickpay/confirm.xml?"
-        f"receiver={YOOMONEY_WALLET}&"
-        f"quickpay-form=shop&"
-        f"targets=UC%20заказ%20#{order_id}&"
-        f"sum={total_price}&"
-        f"label={yoomoney_label}&"
-        f"paymentType=AC"
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="✅ Я оплатил")], [KeyboardButton(text="❌ Отмена")]],
+        resize_keyboard=True
     )
+
+    await message.answer(
+        f"📦 <b>Товар:</b> {label}\n"
+        f"💰 <b>Цена за штуку:</b> {unit_price} RUB\n"
+        f"📦 <b>Количество:</b> {quantity} шт.\n"
+        f"💸 <b>Итого к оплате:</b> {total_price} RUB\n"
+        f"⏰ <b>Время:</b> {now.strftime('%H:%M')}\n\n"
+        f"💳 <b>Реквизиты для оплаты:</b>\n"
+        f"<code>2202 2084 3750 2835</code> (СБП)\n"
+        f"<code>+79648469752</code> (Альфа Банк)\n\n"
+        f"<b>❗️ Обязательно отправьте фото чека после оплаты</b>.",
+        reply_markup=kb
+    )
+
+    await state.set_state(UCState.waiting_for_receipt_photo)
 
     # Сохраняем label в базу, чтобы webhook его нашёл
     conn = sqlite3.connect("users_orders.db")
@@ -296,7 +290,7 @@ async def payment_umoney(message: Message, state: FSMContext):
         (yoomoney_label, order_id)
     )
     conn.commit()
-    conn.close()
+
 
     kb = ReplyKeyboardMarkup(
         keyboard=[
