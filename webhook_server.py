@@ -90,20 +90,18 @@ def yoomoney_webhook():
     text = f"✅ Ваша оплата подтверждена!\n🎁 Ваши UC-коды ({pack_label}):\n\n"
     text += "\n".join(f"<code>{c[1]}</code>" for c in codes)
 
-      async def send_codes():
-        bot = Bot(token=8024102805:AAEcu22cIkfe49UNNC_XlKB1mZMxFRx6aDk, parse_mode=ParseMode.HTML)
+    async def send_codes():
+        bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
         try:
             await bot.send_message(chat_id=user_id, text=text)
-        except Exception as e:
-            print(f"❌ Ошибка при отправке сообщения пользователю {user_id}: {e}")
         finally:
             await bot.session.close()
-
 
     asyncio.run(send_codes())
 
     conn.close()
     return "OK", 200
+
 
 @app.route("/")
 def home():
