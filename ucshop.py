@@ -262,10 +262,6 @@ async def payment_by_card(message: Message, state: FSMContext):
     total_price = quantity * unit_price
     now = datetime.now()
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="✅ Я оплатил")], [KeyboardButton(text="❌ Отмена")]],
-        resize_keyboard=True
-    )
 
     await message.answer(
         f"📦 <b>Товар:</b> {label}\n"
