@@ -318,7 +318,7 @@ async def confirm_payment(call: CallbackQuery):
 
     # Получаем последний заказ
     cursor.execute(
-        "SELECT pack_label, quantity FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+        "SELECT label, quantity FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
         (user_id,)
     )
     order = cursor.fetchone()
@@ -352,6 +352,7 @@ async def confirm_payment(call: CallbackQuery):
         await call.answer("Коды отправлены пользователю ✅", show_alert=True)
     except:
         await call.answer("❌ Не удалось отправить пользователю.", show_alert=True)
+
 
 
 @dp.callback_query(F.data.startswith("reject_"))
