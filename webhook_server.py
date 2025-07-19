@@ -41,27 +41,29 @@ def yoomoney_webhook():
 
     # Получаем заказ по метке
     cursor.execute(
-        "SELECT pack_label, quantity, user_id FROM orders WHERE yoomoney_label = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
-        (label,))
+    "SELECT label, quantity, user_id FROM orders WHERE yoomoney_label = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+    (label,))
+
     result = cursor.fetchone()
     if not result:
         conn.close()
         return "No matching order", 200
 
-    pack_label, quantity, user_id = result
+    label, quantity, user_id = result
 
     # Достаём коды
     cursor.execute(
         "SELECT id, code FROM uc_codes WHERE pack_label = ? AND used = 0 LIMIT ?",
-        (pack_label, quantity)
+        (label, quantity)
     )
     codes = cursor.fetchall()
     if len(codes) < quantity:
         conn.close()
         return "Not enough codes", 200
 
-    code_ids = [c[0] for c in codes]
-    cursor.executemany("UPDATE uc_codes SET used = 1, order_id = NULL WHERE id = ?", [(i,) for i in code_ids])
+    code_ids = [c[0] for c in codes]  
+    order_id = label.split("_")[1]
+   cursor.executemany("UPDATE uc_codes SET used = 1, order_id = ? WHERE id = ?", [(order_id, i) for i in code_ids])
     cursor.execute("UPDATE orders SET status = 'completed' WHERE yoomoney_label = ?", (label,))
     conn.commit()
 
