@@ -381,7 +381,7 @@ async def payment_umoney(message: Message, state: FSMContext):
         f"💳 <b>Итоговая сумма:</b> {total_price} RUB\n"
         f"───────────────\n"
         f"<b>Для оплаты перейдите по ссылке:</b>\n"
-        f"https://yoomoney.ru/to/4100111899459093\n\n"
+        f"https://yoomoney.ru/quickpay/fundraise/button?billNumber=1BJ69PUJVS2.250718&"
         f"💵 <b>Сумма оплаты:</b> {total_price} RUB\n"
         f"⏰ <b>Время на оплату:</b> 30 минут\n"
         f"⌛️ <b>Необходимо оплатить до:</b> {deadline.strftime('%H:%M')}",
