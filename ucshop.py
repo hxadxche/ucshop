@@ -266,7 +266,7 @@ async def payment_by_card(message: Message, state: FSMContext):
     )
 
     await message.answer("После оплаты нажмите «✅ Я оплатил» и отправьте фото чека.", reply_markup=kb)
-    await state.set_state(UCState.waiting_for_receipt_photo)
+
 
 
 
