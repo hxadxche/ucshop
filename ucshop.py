@@ -421,7 +421,7 @@ async def payment_umoney(message: Message, state: FSMContext):
         f"targets=Оплата UC кодов (заказ #{order_id})&"
         f"sum={total_price}&"
         f"label={yoomoney_label}&"
-        f"notification_url=https://твой-домен/yoomoney_webhook&"
+        f"notification_url=https://telegram-bot-production-d0ad.up.railway.app/yoomoney_webhook&"
         f"paymentType=AC"
     )
 
