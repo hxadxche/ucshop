@@ -36,13 +36,13 @@ def yoomoney_webhook():
         print("❌ Ошибка SHA1: неверная подпись")
         abort(400, "Invalid hash")
 
-
-
     label = data.get("label")
-      label = data.get("label")
     if not label:
-        print("❌ Метка пустая, заказ не найден")
+        print("❌ Нет label в запросе")
         abort(400, "Label is empty")
+
+    # Остальной код продолжай отсюда...
+
 
     conn = sqlite3.connect("users_orders.db")
     cursor = conn.cursor()
