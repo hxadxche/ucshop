@@ -50,15 +50,17 @@ cursor.execute("""
         yoomoney_label TEXT UNIQUE
     )
 """)
-# Добавляем колонку yoomoney_label, если её ещё нет
+conn.commit()
+# После создания таблиц
+conn.commit()
+
+# Проверка наличия колонки и добавление, если нужно
 try:
     cursor.execute("ALTER TABLE orders ADD COLUMN yoomoney_label TEXT UNIQUE")
     conn.commit()
 except sqlite3.OperationalError:
-    pass  # колонка уже существует
-
-
-conn.commit()
+    # Колонка уже существует — игнорируем ошибку
+    pass
 
 # Добавление UC-кодов, только если их ещё нет
 cursor.execute("SELECT COUNT(*) FROM uc_codes")
