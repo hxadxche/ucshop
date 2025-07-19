@@ -415,7 +415,7 @@ async def payment_umoney(message: Message, state: FSMContext):
 
     # Генерация ссылки на оплату
     payment_url = (
-        f"https://yoomoney.ru/to/4100111899459093"
+        f"https://yoomoney.ru/quickpay/fundraise/button?billNumber=1BJ69PUJVS2.250718&"
         f"receiver={YOOMONEY_WALLET}&"
         f"quickpay-form=shop&"
         f"targets=Оплата UC кодов (заказ #{order_id})&"
