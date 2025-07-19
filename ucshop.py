@@ -15,6 +15,12 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 # === SQLite ===
 conn = sqlite3.connect("users_orders.db")
 cursor = conn.cursor()
+try:
+    cursor.execute("ALTER TABLE orders ADD COLUMN yoomoney_label TEXT UNIQUE")
+    conn.commit()
+except sqlite3.OperationalError:
+    # Колонка уже есть — игнорируем ошибку
+    pass
 
 # Пользователи
 cursor.execute("""
@@ -52,15 +58,7 @@ cursor.execute("""
 """)
 conn.commit()
 # После создания таблиц
-conn.commit()
 
-# Проверка наличия колонки и добавление, если нужно
-try:
-    cursor.execute("ALTER TABLE orders ADD COLUMN yoomoney_label TEXT UNIQUE")
-    conn.commit()
-except sqlite3.OperationalError:
-    # Колонка уже существует — игнорируем ошибку
-    pass
 
 # Добавление UC-кодов, только если их ещё нет
 cursor.execute("SELECT COUNT(*) FROM uc_codes")
