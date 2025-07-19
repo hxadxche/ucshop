@@ -1,14 +1,15 @@
-from flask import Flask, request, abort
+import os
+import asyncio
 import hashlib
-import hmac
 import sqlite3
+from flask import Flask, request, abort
+from aiogram import Bot
+from aiogram.enums import ParseMode
 
 app = Flask(__name__)
-
-# Секрет из настроек уведомлений ЮMoney
 NOTIFICATION_SECRET = "sgtipI6iQlaXCB1XCgksTaP5"
+BOT_TOKEN = "8024102805:AAEcu22cIkfe49UNNC_XlKB1mZMxFRx6aDk"
 
-# === Функция для верификации SHA-1 хэша ===
 def verify_sha1(data: dict):
     raw_string = (
         f"{data.get('notification_type')}&"
@@ -24,7 +25,6 @@ def verify_sha1(data: dict):
     sha1 = hashlib.sha1(raw_string.encode("utf-8")).hexdigest()
     return sha1 == data.get("sha1_hash")
 
-# === Основной маршрут приема POST-запроса от ЮMoney ===
 @app.route("/yoomoney_webhook", methods=["POST"])
 def yoomoney_webhook():
     data = request.form.to_dict()
@@ -32,54 +32,58 @@ def yoomoney_webhook():
     if not verify_sha1(data):
         abort(400, "Invalid hash")
 
-    label = data.get("label")  # это Telegram user_id
+    label = data.get("label")
     if not label:
         abort(400, "Label is empty")
 
-    # Подключаемся к БД
     conn = sqlite3.connect("users_orders.db")
     cursor = conn.cursor()
 
-    # Ищем последний заказ по этому user_id (label)
+    # Получаем заказ по метке
     cursor.execute(
-        "SELECT label, quantity FROM orders WHERE user_id = ? ORDER BY date DESC LIMIT 1",
-        (label,)
-    )
+        "SELECT pack_label, quantity, user_id FROM orders WHERE yoomoney_label = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+        (label,))
     result = cursor.fetchone()
     if not result:
         conn.close()
-        return "No order", 200
+        return "No matching order", 200
 
-    pack_label, quantity = result
+    pack_label, quantity, user_id = result
 
-    # Проверяем доступные коды
+    # Достаём коды
     cursor.execute(
-        "SELECT id, code FROM uc_codes WHERE label = ? AND used = 0 LIMIT ?",
+        "SELECT id, code FROM uc_codes WHERE pack_label = ? AND used = 0 LIMIT ?",
         (pack_label, quantity)
     )
     codes = cursor.fetchall()
-
     if len(codes) < quantity:
         conn.close()
         return "Not enough codes", 200
 
-    # Отмечаем их использованными
     code_ids = [c[0] for c in codes]
-    cursor.executemany("UPDATE uc_codes SET used = 1 WHERE id = ?", [(i,) for i in code_ids])
+    cursor.executemany("UPDATE uc_codes SET used = 1, order_id = NULL WHERE id = ?", [(i,) for i in code_ids])
+    cursor.execute("UPDATE orders SET status = 'completed' WHERE yoomoney_label = ?", (label,))
     conn.commit()
-
-    # Отправляем коды в Telegram
-    from aiogram import Bot
-    from aiogram.enums import ParseMode
-
-    bot = Bot(token="", parse_mode=ParseMode.HTML)
 
     text = f"✅ Ваша оплата подтверждена!\n🎁 Ваши UC-коды ({pack_label}):\n\n"
     text += "\n".join(f"<code>{c[1]}</code>" for c in codes)
-    try:
-        asyncio.run(bot.send_message(chat_id=int(label), text=text))
-    except Exception as e:
-        print("Ошибка отправки:", e)
+
+    async def send_codes():
+        bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
+        try:
+            await bot.send_message(chat_id=user_id, text=text)
+        finally:
+            await bot.session.close()
+
+    asyncio.run(send_codes())
 
     conn.close()
     return "OK", 200
+
+@app.route("/")
+def home():
+    return "Webhook is working", 200
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
