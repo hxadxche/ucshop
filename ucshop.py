@@ -3,99 +3,56 @@ import sqlite3
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
+# === Настройки ===
+API_TOKEN = "8024102805:AAEcu22cIkfe49UNNC_XlKB1mZMxFRx6aDk"
+YOOMONEY_WALLET = "410011812000000"  # ← Укажи здесь настоящий кошелёк
 
-# === SQLite ===
+# === Инициализация ===
+bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+dp = Dispatcher(storage=MemoryStorage())
+
 conn = sqlite3.connect("users_orders.db")
 cursor = conn.cursor()
 
-# Пользователи
+# === Таблицы ===
 cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
-        username TEXT,
-        first_name TEXT,
-        reg_date TEXT
-    )
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY,
+    username TEXT,
+    first_name TEXT,
+    reg_date TEXT
+)
 """)
-
-# UC-коды
 cursor.execute("""
-    CREATE TABLE IF NOT EXISTS uc_codes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        label TEXT,
-        code TEXT UNIQUE,
-        used INTEGER DEFAULT 0,
-        order_id INTEGER
-    )
+CREATE TABLE IF NOT EXISTS uc_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT,
+    code TEXT UNIQUE,
+    used INTEGER DEFAULT 0,
+    order_id INTEGER
+)
 """)
-
-# Заказы
 cursor.execute("""
-    CREATE TABLE IF NOT EXISTS orders (
-                                          id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                          user_id INTEGER NOT NULL,
-                                          pack_label TEXT NOT NULL,
-                                          quantity INTEGER NOT NULL,
-                                          amount REAL NOT NULL,
-                                          status TEXT DEFAULT 'pending' CHECK(status IN ('pending','completed','cancelled')),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        yoomoney_label TEXT UNIQUE
-    )
+CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    price REAL NOT NULL,
+    date TEXT NOT NULL,
+    payment_method TEXT,
+    yoomoney_label TEXT
+)
 """)
-
 conn.commit()
-
-sample_data = [
-    ("60 UC", "60CODE1"), ("60 UC", "60CODE2"),("60 UC", "60CODE3"),("60 UC", "60CODE4"),("60 UC", "60CODE5"),
-    ("325 UC", "325CODE1"), ("325 UC", "325CODE2"),("325 UC", "325CODE3"), ("325 UC", "325CODE4"),
-    ("385 UC", "385CODE1"), ("385 UC", "385CODE2"),("385 UC", "385CODE3"), ("385 UC", "385CODE4"),
-    ("660 UC", "660CODE1"), ("660 UC", "660CODE2"),("660 UC", "660CODE3"), ("660 UC", "660CODE4"),
-    ("720 UC", "720CODE1"), ("720 UC", "720CODE2"),("720 UC", "720CODE3"), ("720 UC", "720CODE4"),
-    ("1320 UC", "1320CODE1"), ("1320 UC", "1320CODE2"),("1320 UC", "1320CODE3"), ("1320 UC", "1320CODE4"),
-]
-# Очищаем старые данные (если были)
-#cursor.execute("DELETE FROM uc_codes")
-
-# Вставляем новые
-for label, code in sample_data:
-    cursor.execute("INSERT INTO uc_codes (label, code) VALUES (?, ?)", (label, code))
-
-conn.commit()
-
-# Покажем все доступные коды
-cursor.execute("SELECT label, code FROM uc_codes WHERE used = 0 ORDER BY id")
-available_codes = cursor.fetchall()
-available_codes
-conn.commit()
-
-sample_data = [
-    ("60 UC", "60CODE1"), ("60 UC", "60CODE2"),("60 UC", "60CODE3"),("60 UC", "60CODE4"),("60 UC", "60CODE5"),
-    ("325 UC", "325CODE1"), ("325 UC", "325CODE2"),("325 UC", "325CODE3"), ("325 UC", "325CODE4"),
-    ("385 UC", "385CODE1"), ("385 UC", "385CODE2"),("385 UC", "385CODE3"), ("385 UC", "385CODE4"),
-    ("660 UC", "660CODE1"), ("660 UC", "660CODE2"),("660 UC", "660CODE3"), ("660 UC", "660CODE4"),
-    ("720 UC", "720CODE1"), ("720 UC", "720CODE2"),("720 UC", "720CODE3"), ("720 UC", "720CODE4"),
-    ("1320 UC", "1320CODE1"), ("1320 UC", "1320CODE2"),("1320 UC", "1320CODE3"), ("1320 UC", "1320CODE4"),
-
-]
-cursor.execute("SELECT COUNT(*) FROM uc_codes")
-if cursor.fetchone()[0] == 0:
-    for label, code in sample_data:
-        cursor.execute("INSERT INTO uc_codes (label, code) VALUES (?, ?)", (label, code))
-    conn.commit()
-
-# === Bot config ===
-API_TOKEN = "8024102805:AAEcu22cIkfe49UNNC_XlKB1mZMxFRx6aDk"
-bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-dp = Dispatcher(storage=MemoryStorage())
 
 # === Состояния ===
 class UCState(StatesGroup):
@@ -103,16 +60,14 @@ class UCState(StatesGroup):
     choosing_payment_method = State()
     waiting_for_receipt_photo = State()
 
-# === Команда /start ===
+# === /start ===
 @dp.message(F.text == "/start")
 async def start(message: Message, state: FSMContext):
     user_id = message.from_user.id
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
     if cursor.fetchone() is None:
-        cursor.execute(
-            "INSERT INTO users (user_id, username, first_name, reg_date) VALUES (?, ?, ?, ?)",
-            (user_id, message.from_user.username, message.from_user.first_name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        )
+        cursor.execute("INSERT INTO users (user_id, username, first_name, reg_date) VALUES (?, ?, ?, ?)",
+                       (user_id, message.from_user.username, message.from_user.first_name, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
 
     kb = ReplyKeyboardBuilder()
@@ -124,30 +79,28 @@ async def start(message: Message, state: FSMContext):
 
     await state.clear()
     await message.answer(
-        "⚡️Приветствуем тебя в автоматическом боте покупки UC кодов 🔥\n\n"
-        "Официальная группа: https://t.me/CHUDO_UC_SHOP\n\n"
-        "Бот работает 24/7 с паками от 60 UC\n\n"
-        "Если возникнут какие-то вопросы: @chudoo_19",
+        "⚡️Приветствуем в боте по покупке UC!\n\n"
+        "Выберите действие ниже:",
         reply_markup=kb.as_markup(resize_keyboard=True)
     )
 
 @dp.message(F.text == "UC в наличии")
-async def uc_in_stock(message: Message):
-    stock_info = "<b>📦 UC в наличии:</b>\n\n"
+async def uc_stock(message: Message):
+    reply = "<b>📦 UC в наличии:</b>\n"
     for label in ["60 UC", "325 UC", "385 UC", "660 UC", "720 UC", "1320 UC"]:
         cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
         count = cursor.fetchone()[0]
-        stock_info += f"• {label} — {count} шт.\n"
-    await message.answer(stock_info)
+        reply += f"• {label} — {count} шт.\n"
+    await message.answer(reply)
 
 @dp.message(F.text == "Купить UC")
-async def show_categories(message: Message):
+async def choose_category(message: Message):
     kb = ReplyKeyboardBuilder()
     kb.button(text="UC Pubg Mobile")
     await message.answer("Выберите категорию:", reply_markup=kb.as_markup(resize_keyboard=True))
 
 @dp.message(F.text == "UC Pubg Mobile")
-async def show_uc_packages(message: Message):
+async def show_packages(message: Message):
     kb = ReplyKeyboardBuilder()
     for label, price in [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]:
         cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
@@ -157,88 +110,61 @@ async def show_uc_packages(message: Message):
     kb.adjust(1)
     await message.answer("Категория: UC Pubg Mobile", reply_markup=kb.as_markup(resize_keyboard=True))
 
-async def send_quantity_menu(message: Message, quantity: int, unit_price: int, label: str):
-    total_price = quantity * unit_price
+@dp.message(F.text.contains("UC"))
+async def select_package(message: Message, state: FSMContext):
+    text = message.text.split(" | ")
+    if len(text) < 2:
+        return
+    label, price = text[0], int(text[1].split()[0])
+    await state.set_state(UCState.choosing_quantity)
+    await state.update_data(quantity=1, unit_price=price, label=label)
+    await ask_quantity(message, 1, price, label)
+
+async def ask_quantity(message, quantity, unit_price, label):
+    total = quantity * unit_price
     kb = ReplyKeyboardBuilder()
-    for val in [-5, -3, -1, +1, +3, +5]:
-        kb.button(text=f"{'+' if val > 0 else ''}{val}")
+    for i in [-5, -3, -1, 1, 3, 5]:
+        kb.button(text=f"{'+' if i > 0 else ''}{i}")
     kb.adjust(3)
     kb.button(text="✅ Подтверждаю")
     kb.button(text="❌ Отмена")
-    kb.button(text="🔙 Назад")
-    kb.button(text="⬅️ Назад ко всем категориям")
     kb.adjust(2)
     await message.answer(
-        f"<b>🛒 Товар:</b> {label}\n"
-        f"<b>💰 Цена за штуку:</b> {unit_price} RUB\n"
-        f"<b>📦 Количество:</b> {quantity} шт.\n"
-        f"<b>💸 Общая сумма:</b> {total_price} RUB",
+        f"<b>Товар:</b> {label}\n<b>Цена за шт:</b> {unit_price} RUB\n"
+        f"<b>Кол-во:</b> {quantity}\n<b>Сумма:</b> {total} RUB",
         reply_markup=kb.as_markup(resize_keyboard=True)
     )
-
-async def handle_uc_package(message: Message, state: FSMContext, label: str, unit_price: int):
-    await state.set_state(UCState.choosing_quantity)
-    await state.update_data(quantity=1, unit_price=unit_price, label=label)
-    await send_quantity_menu(message, 1, unit_price, label)
-
-uc_packages = [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]
-
-for label, price in uc_packages:
-    def register_handler(lbl, prc):
-        @dp.message(F.text.startswith(lbl))
-        async def handle(message: Message, state: FSMContext):
-            await handle_uc_package(message, state, lbl, prc)
-    register_handler(label, price)
-
 
 @dp.message(UCState.choosing_quantity, F.text.in_({"+1", "+3", "+5", "-1", "-3", "-5"}))
 async def change_quantity(message: Message, state: FSMContext):
     data = await state.get_data()
     quantity = max(1, data.get("quantity", 1) + int(message.text))
     await state.update_data(quantity=quantity)
-    await send_quantity_menu(message, quantity, data.get("unit_price", 0), data.get("label", "UC"))
+    await ask_quantity(message, quantity, data.get("unit_price"), data.get("label"))
 
 @dp.message(UCState.choosing_quantity, F.text == "✅ Подтверждаю")
-async def confirm_order(message: Message, state: FSMContext):
+async def confirm(message: Message, state: FSMContext):
     data = await state.get_data()
-    quantity    = data.get("quantity", 1)
-    unit_price  = data.get("unit_price", 0)
-    label       = data.get("label", "UC")
-    total_price = quantity * unit_price
-
-    # ─── ПРОВЕРКА НАЛИЧИЯ ─────────────────────────────────
-    cursor.execute(
-        "SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0",
-        (label,)
-    )
-    available = cursor.fetchone()[0]
-
-    if available < quantity:
-        kb = ReplyKeyboardBuilder()
-        kb.button(text="⬅️ Назад ко всем категориям")
-        kb.button(text="❌ Отмена")
-        kb.adjust(1)
-
-        await message.answer(
-            f"❌ Недостаточно UC-кодов в наличии для {label}.\n"
-            f"Вы выбрали: {quantity}, доступно: {available}.\n\n"
-            "Пожалуйста, выберите меньшее количество или другой пакет.",
-            reply_markup=kb.as_markup(resize_keyboard=True)
-        )
-        return
-    # ────────────────────────────────────────────────────
-    # ——— Сохранить заказ в БД с правильным количеством ———
+    quantity = data["quantity"]
+    label = data["label"]
+    unit_price = data["unit_price"]
+    total = quantity * unit_price
     user_id = message.from_user.id
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute(
-        "INSERT INTO orders (user_id, label, quantity, price, date) VALUES (?, ?, ?, ?, ?)",
-        (user_id, label, quantity, total_price, now_str)
-    )
-    conn.commit()
-    # ————————————————————————————————————————————————
 
-    # если всё ок — показываем способы оплаты
+    cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
+    if cursor.fetchone()[0] < quantity:
+        await message.answer("❌ Недостаточно UC в наличии.")
+        return
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("INSERT INTO orders (user_id, label, quantity, price, date) VALUES (?, ?, ?, ?, ?)",
+                   (user_id, label, quantity, total, now))
+    conn.commit()
+    order_id = cursor.lastrowid
+
+    await state.update_data(order_id=order_id)
     await state.set_state(UCState.choosing_payment_method)
+
     kb = ReplyKeyboardBuilder()
     kb.button(text="💳 Оплата переводом на карту")
     kb.button(text="🟣 Оплата через Ю-Money")
@@ -246,253 +172,105 @@ async def confirm_order(message: Message, state: FSMContext):
     kb.adjust(1)
 
     await message.answer(
-        f"<b>🧾 Вы выбрали:</b>\n"
-        f"{quantity} x {label}\n"
-        f"<b>💸 К оплате:</b> {total_price} RUB\n\n"
-        "Выберите способ оплаты:",
+        f"📦 {quantity} x {label}\n💸 <b>К оплате:</b> {total} RUB\n\nВыберите способ оплаты:",
         reply_markup=kb.as_markup(resize_keyboard=True)
     )
 
 @dp.message(UCState.choosing_payment_method, F.text == "💳 Оплата переводом на карту")
-async def payment_by_card(message: Message, state: FSMContext):
+async def card_payment(message: Message, state: FSMContext):
     data = await state.get_data()
-    quantity = data.get("quantity", 1)
-    unit_price = data.get("unit_price", 0)
-    label = data.get("label", "UC")
-    total_price = quantity * unit_price
-    now = datetime.now()
-
+    total = data["quantity"] * data["unit_price"]
     kb = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="✅ Я оплатил")], [KeyboardButton(text="❌ Отмена")]],
         resize_keyboard=True
     )
-
     await message.answer(
-        f"📦 <b>Товар:</b> {label}\n"
-        f"💰 <b>Цена за штуку:</b> {unit_price} RUB\n"
-        f"📦 <b>Количество:</b> {quantity} шт.\n"
-        f"💸 <b>Итого к оплате:</b> {total_price} RUB\n"
-        f"⏰ <b>Время:</b> {now.strftime('%H:%M')}\n\n"
-        f"💳 <b>Реквизиты для оплаты:</b>\n"
-        f"<code>2202 2084 3750 2835</code> (СБП)\n"
-        f"<code>+79648469752</code> (Альфа Банк)\n\n"
-        f"<b>❗️ Обязательно отправьте фото чека после оплаты</b>.",
+        f"💳 Переведите <b>{total} RUB</b> на карту:\n<code>2202 2084 3750 2835</code>\n"
+        f"или по СБП: <code>+79648469752</code>\n\n"
+        "После перевода отправьте чек.",
         reply_markup=kb
     )
-
     await state.set_state(UCState.waiting_for_receipt_photo)
-
-
-@dp.message(F.text == "Я оплатил")
-async def handle_payment_confirmation(message: Message, state: FSMContext):
-    await message.answer("📸 Пожалуйста, отправьте фото чека (скриншот подтверждения перевода).")
-    await state.set_state(UCState.waiting_for_receipt_photo)
-
-@dp.message(UCState.waiting_for_receipt_photo, F.photo)
-async def handle_receipt_photo(message: Message, state: FSMContext):
-    ADMIN_ID = 1001953510
-    user = message.from_user
-    caption = (
-        f"📩 Новый платёж по карте!\n\n"
-        f"👤 Пользователь: @{user.username or 'без username'}\n"
-        f"🆔 ID: {user.id}\n"
-        f"👁 Имя: {user.first_name}\n\n"
-        f"🧾 Проверьте чек:"
-    )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Подтверждено", callback_data=f"confirm_{user.id}")],
-        [InlineKeyboardButton(text="❌ Отказ", callback_data=f"reject_{user.id}")]
-    ])
-
-    await bot.send_photo(
-        chat_id=ADMIN_ID,
-        photo=message.photo[-1].file_id,
-        caption=caption,
-        reply_markup=keyboard
-    )
-
-    await message.answer("✅ Чек отправлен администратору на проверку. Мы сообщим, как только он подтвердит оплату.")
-    await state.clear()
-@dp.callback_query(F.data.startswith("confirm_"))
-async def confirm_payment(call: CallbackQuery):
-    user_id = int(call.data.split("_")[1])
-
-    # 1) Достанем из orders последний созданный заказ для этого пользователя
-    cursor.execute(
-        "SELECT label, quantity FROM orders WHERE user_id = ? ORDER BY date DESC LIMIT 1",
-        (user_id,)
-    )
-    order = cursor.fetchone()
-    if not order:
-        await call.answer("❌ Заказ не найден.", show_alert=True)
-        return
-
-    label, quantity = order
-
-    # 2) Выбираем ровно столько кодов нужного пакета
-    cursor.execute(
-        "SELECT id, code FROM uc_codes WHERE label = ? AND used = 0 LIMIT ?",
-        (label, quantity)
-    )
-    codes = cursor.fetchall()
-    if len(codes) < quantity:
-        await call.answer("❌ Недостаточно кодов в наличии.", show_alert=True)
-        return
-
-    # 3) Помечаем их как использованные
-    code_ids = [row[0] for row in codes]
-    cursor.executemany(
-        "UPDATE uc_codes SET used = 1 WHERE id = ?",
-        [(cid,) for cid in code_ids]
-    )
-    conn.commit()
-
-    # 4) Отправляем пользователю _именно_ эти коды
-    text = f"✅ Ваш платёж подтверждён!\n🎁 Ваши UC-коды ({label}):\n\n"
-    text += "\n".join(f"<code>{row[1]}</code>" for row in codes)
-
-    try:
-        await bot.send_message(user_id, text)
-        await call.answer("Коды отправлены пользователю ✅", show_alert=True)
-    except:
-        await call.answer("❌ Не удалось отправить пользователю.", show_alert=True)
-
-
-@dp.callback_query(F.data.startswith("reject_"))
-async def reject_payment(call: CallbackQuery):
-    user_id = int(call.data.split("_")[1])
-    try:
-        await bot.send_message(user_id, "❌ Ваш чек не прошёл проверку.\nЕсли вы уверены, что всё правильно — свяжитесь с @chudoo_19.")
-        await call.answer("Отказ отправлен пользователю.", show_alert=True)
-    except:
-        await call.answer("❌ Не удалось отправить сообщение пользователю.")
-
-@dp.message(UCState.waiting_for_receipt_photo)
-async def invalid_receipt(message: Message):
-    await message.answer("❌ Пожалуйста, отправьте именно фото чека.")
-
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 @dp.message(UCState.choosing_payment_method, F.text == "🟣 Оплата через Ю-Money")
-async def payment_umoney(message: Message, state: FSMContext):
+async def yoomoney_payment(message: Message, state: FSMContext):
     data = await state.get_data()
-    quantity = data.get("quantity", 1)
-    unit_price = data.get("unit_price", 0)
-    label = data.get("label", "UC")
-    total_price = quantity * unit_price
-    order_id = data.get("order_id")
     user_id = message.from_user.id
-    now = datetime.now()
-    deadline = now + timedelta(minutes=30)
+    total = data["quantity"] * data["unit_price"]
+    order_id = data["order_id"]
+    label = f"{user_id}_{order_id}"
 
-    # Сохраняем уникальный label для webhook
-    if order_id:
-        yoomoney_label = f"{user_id}_{order_id}"
-        cursor.execute(
-            "UPDATE orders SET payment_method = ?, yoomoney_label = ? WHERE id = ?",
-            ("yoomoney", yoomoney_label, order_id))
-        conn.commit()
-    else:
-        await message.answer("❌ Ошибка при создании заказа.")
-        return
+    cursor.execute("UPDATE orders SET yoomoney_label = ?, payment_method = ? WHERE id = ?", (label, "yoomoney", order_id))
+    conn.commit()
 
-    # Ссылка на оплату с webhook URL
     payment_url = (
         f"https://yoomoney.ru/quickpay/confirm.xml?"
-        f"receiver={YOOMONEY_WALLET}&"
-        f"quickpay-form=shop&"
-        f"targets=Оплата UC кодов (заказ #{order_id})&"
-        f"sum={total_price}&"
-        f"label={yoomoney_label}&"
-        f"notification_url=https://ucshop.up.railway.app/yoomoney_webhook&"
-        f"paymentType=AC"
+        f"receiver={YOOMONEY_WALLET}&quickpay-form=shop&targets=UC+{order_id}&"
+        f"sum={total}&label={label}&paymentType=AC&"
+        f"notification_url=https://ucshop.up.railway.app/yoomoney_webhook"
     )
 
-    # Кнопка на оплату
-    pay_kb = InlineKeyboardMarkup(inline_keyboard=[
+    inline_kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)]
     ])
 
-    await message.answer(
-        f"<b>📦 Товар:</b> {label}\n"
-        f"<b>💰 Цена за единицу:</b> {unit_price} RUB\n"
-        f"<b>📦 Количество:</b> {quantity} шт.\n"
-        f"<b>💸 Итоговая сумма:</b> {total_price} RUB\n"
-        f"<b>⏰ Время на оплату:</b> 30 минут\n\n"
-        f"Нажмите кнопку ниже для оплаты:",
-        reply_markup=pay_kb
-    )
-
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="✅ Я оплатил")],
-            [KeyboardButton(text="❌ Отмена")]
-        ],
+    await message.answer("Нажмите кнопку ниже для перехода к оплате:", reply_markup=inline_kb)
+    await message.answer("После оплаты нажмите «✅ Я оплатил».", reply_markup=ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="✅ Я оплатил")], [KeyboardButton(text="❌ Отмена")]],
         resize_keyboard=True
-    )
+    ))
 
-    await message.answer(
-        f"⌛️ <b>Необходимо оплатить до:</b> {deadline.strftime('%H:%M')}\n"
-        "После оплаты нажмите «✅ Я оплатил» и дождитесь автоматической проверки.",
-        reply_markup=kb
-    )
-
-    await state.set_state(UCState.choosing_payment_method)
-
-
-@dp.message(UCState.choosing_payment_method, F.text == "✅ Я оплатил")
-async def wait_for_umoney_check(message: Message, state: FSMContext):
-    await message.answer(
-        "⏳ <b>Ожидаем подтверждение оплаты от сервера...</b>\n"
-        "Вы получите сообщение автоматически, как только оплата будет подтверждена."
-    )
+@dp.message(F.text == "✅ Я оплатил")
+async def after_payment(message: Message, state: FSMContext):
+    await message.answer("⏳ Ожидаем подтверждение оплаты... Вы получите сообщение автоматически.")
     await state.clear()
 
-
-@dp.message(F.text == "❌ Отмена")
-async def cancel_any_state(message: Message, state: FSMContext):
+@dp.message(UCState.waiting_for_receipt_photo, F.photo)
+async def photo_check(message: Message, state: FSMContext):
+    ADMIN_ID = 1001953510
+    photo = message.photo[-1].file_id
+    user = message.from_user
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"confirm_{user.id}")],
+        [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{user.id}")]
+    ])
+    caption = f"Чек от @{user.username or 'без username'} (ID: {user.id})"
+    await bot.send_photo(chat_id=ADMIN_ID, photo=photo, caption=caption, reply_markup=kb)
+    await message.answer("✅ Чек отправлен на проверку.")
     await state.clear()
 
-    kb = ReplyKeyboardBuilder()
-    kb.button(text="Купить UC")
-    kb.button(text="UC в наличии")
-    kb.button(text="Помощь")
-    kb.button(text="Профиль")
-    kb.adjust(2)
-
-    await message.answer("❌ Действие отменено. Возвращаемся в главное меню:", reply_markup=kb.as_markup(resize_keyboard=True))
-
-@dp.message(F.text == "⬅️ Назад ко всем категориям")
-async def back_to_categories(message: Message):
-    kb = ReplyKeyboardBuilder()
-    kb.button(text="UC Pubg Mobile")
-    await message.answer("Выберите категорию:", reply_markup=kb.as_markup(resize_keyboard=True))
-
-@dp.message(F.text == "Помощь")
-async def help_msg(message: Message):
-    await message.answer("Обратитесь к @chudoo_19")
-
-@dp.message(F.text == "Профиль")
-async def profile(message: Message):
-    user_id = message.from_user.id
-    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
-    user = cursor.fetchone()
-    if not user:
-        await message.answer("Вы ещё не зарегистрированы.")
+@dp.callback_query(F.data.startswith("confirm_"))
+async def confirm_card(call: CallbackQuery):
+    user_id = int(call.data.split("_")[1])
+    cursor.execute("SELECT label, quantity FROM orders WHERE user_id = ? ORDER BY date DESC LIMIT 1", (user_id,))
+    order = cursor.fetchone()
+    if not order:
+        await call.answer("❌ Заказ не найден", show_alert=True)
         return
+    label, quantity = order
+    cursor.execute("SELECT id, code FROM uc_codes WHERE label = ? AND used = 0 LIMIT ?", (label, quantity))
+    codes = cursor.fetchall()
+    if len(codes) < quantity:
+        await call.answer("❌ Недостаточно кодов", show_alert=True)
+        return
+    cursor.executemany("UPDATE uc_codes SET used = 1 WHERE id = ?", [(c[0],) for c in codes])
+    conn.commit()
+    text = f"✅ Ваш платёж подтверждён!\n🎁 Ваши UC-коды ({label}):\n\n"
+    text += "\n".join(f"<code>{c[1]}</code>" for c in codes)
+    try:
+        await bot.send_message(user_id, text)
+        await call.answer("Коды отправлены ✅", show_alert=True)
+    except:
+        await call.answer("❌ Ошибка отправки", show_alert=True)
 
-    cursor.execute("SELECT label, quantity, price, date FROM orders WHERE user_id = ? ORDER BY date DESC LIMIT 5", (user_id,))
-    orders = cursor.fetchall()
-    text = (
-        f"<b>👤 Профиль</b>\nИмя: {user[2]}\nUsername: @{user[1]}\nID: {user[0]}\nДата регистрации: {user[3]}\n\n"
-        f"<b>📜 Последние заказы:</b>\n"
-    )
-    if orders:
-        for label, qty, price, date in orders:
-            text += f"• {qty} x {label} — {price} RUB ({date})\n"
-    else:
-        text += "Нет заказов."
-    await message.answer(text)
+@dp.callback_query(F.data.startswith("reject_"))
+async def reject_card(call: CallbackQuery):
+    user_id = int(call.data.split("_")[1])
+    try:
+        await bot.send_message(user_id, "❌ Ваш платёж не подтверждён. Свяжитесь с @chudoo_19.")
+        await call.answer("Отклонено", show_alert=True)
+    except:
+        await call.answer("Ошибка", show_alert=True)
 
 async def main():
     await dp.start_polling(bot)
