@@ -593,7 +593,7 @@ await call.message.answer(
 await call.answer()
 
 
-    text = (
+text = (
         f"<b>👤 Профиль</b>\n"
         f"Имя: {user[2]}\n"
         f"Username: @{user[1]}\n"
