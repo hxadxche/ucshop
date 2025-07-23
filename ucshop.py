@@ -570,27 +570,27 @@ async def resume_order(call: CallbackQuery, state: FSMContext):
         await call.answer("⚠️ Этот заказ уже завершён или отменён", show_alert=True)
         return
 
-await state.set_state(UCState.awaiting_payment_method)
-await state.update_data(order_id=order_id, label=label, quantity=qty, unit_price=int(price/qty))
+    await state.set_state(UCState.awaiting_payment_method)
+    await state.update_data(order_id=order_id, label=label, quantity=qty, unit_price=int(price/qty))
 
-payment_choice_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="💳 Оплатить картой")],
-        [KeyboardButton(text="🟣 Оплатить через ЮMoney")],
-        [KeyboardButton(text="❌ Отменить заказ")]
-    ],
-    resize_keyboard=True
-)
+    payment_choice_kb = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="💳 Оплатить картой")],
+            [KeyboardButton(text="🟣 Оплатить через ЮMoney")],
+            [KeyboardButton(text="❌ Отменить заказ")]
+        ],
+        resize_keyboard=True
+    )
 
-await call.message.answer(
-    f"<b>📦 Заказ:</b> {label}\n"
-    f"<b>🔢 Кол-во:</b> {qty}\n"
-    f"<b>💰 Сумма:</b> {price} RUB\n\n"
-    f"Выберите способ оплаты:",
-    reply_markup=payment_choice_kb
-)
+    await call.message.answer(
+        f"<b>📦 Заказ:</b> {label}\n"
+        f"<b>🔢 Кол-во:</b> {qty}\n"
+        f"<b>💰 Сумма:</b> {price} RUB\n\n"
+        f"Выберите способ оплаты:",
+        reply_markup=payment_choice_kb
+    )
 
-await call.answer()
+    await call.answer()
 
 
 text = (
