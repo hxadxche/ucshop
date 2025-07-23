@@ -595,7 +595,7 @@ await call.message.answer(
 
 
 
-    await call.answer()
+await call.answer()
 
     # Получаем пользователя
     cursor.execute("SELECT id, username, full_name, registered_at FROM users WHERE id = ?", (user_id,))
