@@ -570,31 +570,26 @@ async def resume_order(call: CallbackQuery, state: FSMContext):
         await call.answer("⚠️ Этот заказ уже завершён или отменён", show_alert=True)
         return
 
-    await state.set_state(UCState.waiting_for_umoney_payment)
-    await state.update_data(order_id=order_id, label=label, quantity=qty, unit_price=int(price/qty))
+await state.set_state(UCState.awaiting_payment_method)
+await state.update_data(order_id=order_id, label=label, quantity=qty, unit_price=int(price/qty))
 
-    payment_url = (
-        f"https://yoomoney.ru/quickpay/confirm?"
-        f"receiver={YOOMONEY_WALLET}&"
-        f"quickpay-form=shop&"
-        f"targets=Покупка UC-кодов (заказ #{order_id})&"
-        f"sum={price}&"
-        f"label={label_tag}&"
-        f"paymentType=AC"
-    )
+payment_choice_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="💳 Оплатить картой")],
+        [KeyboardButton(text="🟣 Оплатить через ЮMoney")],
+        [KeyboardButton(text="❌ Отменить заказ")]
+    ],
+    resize_keyboard=True
+)
 
-    pay_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)],
-        [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_order")]
-    ])
+await call.message.answer(
+    f"<b>📦 Заказ:</b> {label}\n"
+    f"<b>🔢 Кол-во:</b> {qty}\n"
+    f"<b>💰 Сумма:</b> {price} RUB\n\n"
+    f"Выберите способ оплаты:",
+    reply_markup=payment_choice_kb
+)
 
-    await call.message.answer(
-        f"<b>📦 Заказ:</b> {label}\n"
-        f"<b>🔢 Кол-во:</b> {qty}\n"
-        f"<b>💰 Сумма:</b> {price} RUB\n\n"
-        f"Нажмите кнопку ниже для оплаты:",
-        reply_markup=pay_kb
-    )
     await call.answer()
 
 
