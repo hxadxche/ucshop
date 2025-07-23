@@ -123,10 +123,30 @@ async def start(message: Message, state: FSMContext):
         reply_markup=kb.as_markup(resize_keyboard=True)
     )
 
+# === Список пакетов ===
+uc_packages = [
+    ("60 UC", 80),
+    ("325 UC", 380),
+    ("385 UC", 450),
+    ("660 UC", 790),
+    ("720 UC", 900),
+    ("1320 UC", 1580)
+]
+
+# === Хендлеры для каждого пакета ===
+def register_uc_handlers():
+    for label, price in uc_packages:
+        @dp.message(F.text == label)
+        async def handle_dynamic_uc(message: Message, state: FSMContext, lbl=label, prc=price):
+            await handle_uc_package(message, state, lbl, prc)
+
+register_uc_handlers()  # 👈 вызывается 1 раз после всех @dp.message
+
+# === Хендлер: Покупка UC (категория) ===
 @dp.message(F.text == "UC в наличии")
 async def uc_in_stock(message: Message):
     stock_info = "<b>📦 UC в наличии:</b>\n\n"
-    for label in ["60 UC", "325 UC", "385 UC", "660 UC", "720 UC", "1320 UC"]:
+    for label in [pkg[0] for pkg in uc_packages]:
         cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
         count = cursor.fetchone()[0]
         stock_info += f"• {label} — {count} шт.\n"
@@ -141,13 +161,8 @@ async def show_categories(message: Message):
 @dp.message(F.text == "UC Pubg Mobile")
 async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
-   for label, price in uc_packages:
-    async def make_handler(lbl, prc):
-        @dp.message(F.text.startswith(lbl))
-        async def dynamic_handler(message: Message, state: FSMContext):
-            await handle_uc_package(message, state, lbl, prc)
-    asyncio.get_event_loop().create_task(make_handler(label, price))
-
+    for label, _ in uc_packages:
+        kb.button(text=label)
     kb.button(text="⬅️ Назад ко всем категориям")
     kb.adjust(1)
     await message.answer("Категория: UC Pubg Mobile", reply_markup=kb.as_markup(resize_keyboard=True))
