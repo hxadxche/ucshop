@@ -484,7 +484,7 @@ async def help_msg(message: Message):
 
 
 @dp.message(F.text == "Профиль")
-async def profile(message: Message):
+async def profile(message: Message, state: FSMContext):
     user_id = message.from_user.id
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
     user = cursor.fetchone()
@@ -492,12 +492,81 @@ async def profile(message: Message):
         await message.answer("Вы ещё не зарегистрированы.")
         return
 
-    cursor.execute(
-        "SELECT label, quantity, price, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 5",
-        (user_id,)
-)
+    text = (
+        f"<b>👤 Профиль</b>\n"
+        f"Имя: {user[2]}\n"
+        f"Username: @{user[1]}\n"
+        f"ID: {user[0]}\n"
+        f"Дата регистрации: {user[3]}\n\n"
+        f"<b>📜 Последние заказы:</b>\n"
+    )
 
+    cursor.execute(
+        "SELECT id, label, quantity, price, status, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 5",
+        (user_id,)
+    )
     orders = cursor.fetchall()
+
+    btns = []
+    for order in orders:
+        oid, label, qty, price, status, created = order
+        if status == "completed":
+            status_text = "✅ Выполнен"
+        elif status == "cancelled":
+            status_text = "❌ Отменён"
+        else:
+            status_text = "⏳ В обработке"
+            btns.append([InlineKeyboardButton(text=f"💳 Перейти к оплате #{oid}", callback_data=f"resume_{oid}")])
+
+        text += f"• {qty} x {label} — {price} RUB ({created}) — {status_text}\n"
+
+    kb = InlineKeyboardMarkup(inline_keyboard=btns) if btns else None
+    await message.answer(text, reply_markup=kb)
+@dp.callback_query(F.data.startswith("resume_"))
+async def resume_order(call: CallbackQuery, state: FSMContext):
+    order_id = int(call.data.split("_")[1])
+    user_id = call.from_user.id
+
+    cursor.execute("SELECT label, quantity, price, yoomoney_label, status FROM orders WHERE id = ? AND user_id = ?", (order_id, user_id))
+    order = cursor.fetchone()
+
+    if not order:
+        await call.answer("❌ Заказ не найден", show_alert=True)
+        return
+
+    label, qty, price, label_tag, status = order
+
+    if status != "pending":
+        await call.answer("⚠️ Этот заказ уже завершён или отменён", show_alert=True)
+        return
+
+    await state.set_state(UCState.waiting_for_umoney_payment)
+    await state.update_data(order_id=order_id, label=label, quantity=qty, unit_price=int(price/qty))
+
+    payment_url = (
+        f"https://yoomoney.ru/quickpay/confirm?"
+        f"receiver={YOOMONEY_WALLET}&"
+        f"quickpay-form=shop&"
+        f"targets=Покупка UC-кодов (заказ #{order_id})&"
+        f"sum={price}&"
+        f"label={label_tag}&"
+        f"paymentType=AC"
+    )
+
+    pay_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)],
+        [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_order")]
+    ])
+
+    await call.message.answer(
+        f"<b>📦 Заказ:</b> {label}\n"
+        f"<b>🔢 Кол-во:</b> {qty}\n"
+        f"<b>💰 Сумма:</b> {price} RUB\n\n"
+        f"Нажмите кнопку ниже для оплаты:",
+        reply_markup=pay_kb
+    )
+    await call.answer()
+
 
     text = (
         f"<b>👤 Профиль</b>\n"
