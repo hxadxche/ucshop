@@ -387,7 +387,8 @@ async def confirm_payment(call: CallbackQuery):
     # Отправка кодов пользователю
     text = f"✅ Ваш платёж подтверждён!\n🎁 Ваши UC-коды ({label}):\n\n"
     text += "\n".join(f"<code>{row[1]}</code>" for row in codes)
-
+cursor.execute("UPDATE orders SET status = 'completed' WHERE order_id = ?", (order_id,))
+conn.commit()
     try:
         await bot.send_message(user_id, text)
         await call.answer("Коды отправлены пользователю ✅", show_alert=True)
