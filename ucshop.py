@@ -162,7 +162,7 @@ async def show_categories(message: Message):
 async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
 
-    for label, _ in uc_packages:
+for label, _ in uc_packages:
 cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
 available = cursor.fetchone()[0]
 if available == 0:
