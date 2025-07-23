@@ -602,8 +602,8 @@ text = (
         f"<b>📜 Последние заказы:</b>\n"
     )
 
-    if orders:
-        for label, qty, price, date in orders:
+if orders:
+    for label, qty, price, date in orders:
             text += f"• {qty} x {label} — {price} RUB ({date})\n"
     else:
         text += "Нет заказов."
