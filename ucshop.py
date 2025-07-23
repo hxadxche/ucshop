@@ -78,7 +78,7 @@ if cursor.fetchone()[0] == 0:
     conn.commit()
 
 # === Bot config ===
-API_TOKEN = "8024102805:AAEcu22cIkfe49UNNC_XlKB1mZMxFRx6aDk"
+API_TOKEN = "7587423228:AAHhVNFsKeWo8ck7xdDL1U8NHzTFsqDgZBE"
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
