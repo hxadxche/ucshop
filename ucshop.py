@@ -162,15 +162,16 @@ async def show_categories(message: Message):
 async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
 
-for label, _ in uc_packages:
-cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
-available = cursor.fetchone()[0]
-if available == 0:
-    await message.answer(f"❌ К сожалению, {label} сейчас закончились.\nПожалуйста, выберите другой пакет.")
-    return
+    for label, _ in uc_packages:
+        cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
+        count = cursor.fetchone()[0]
+        button_text = f"{label} ({count} шт.)"
+        kb.button(text=button_text)
+
     kb.button(text="⬅️ Назад ко всем категориям")
     kb.adjust(1)
     await message.answer("Категория: UC Pubg Mobile", reply_markup=kb.as_markup(resize_keyboard=True))
+
 
 async def send_quantity_menu(message: Message, quantity: int, unit_price: int, label: str):
     total_price = quantity * unit_price
