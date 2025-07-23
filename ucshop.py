@@ -590,7 +590,7 @@ await call.message.answer(
     reply_markup=payment_choice_kb
 )
 
-    await call.answer()
+await call.answer()
 
 
     text = (
