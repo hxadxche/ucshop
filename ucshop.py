@@ -493,8 +493,10 @@ async def profile(message: Message):
         return
 
     cursor.execute(
-        "SELECT pack_label, quantity, amount, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 5",
-        (user_id,))
+        "SELECT label, quantity, price, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 5",
+        (user_id,)
+)
+
     orders = cursor.fetchall()
 
     text = (
