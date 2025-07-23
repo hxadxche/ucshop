@@ -161,8 +161,13 @@ async def show_categories(message: Message):
 @dp.message(F.text == "UC Pubg Mobile")
 async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
+
     for label, _ in uc_packages:
-        kb.button(text=label)
+cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
+available = cursor.fetchone()[0]
+if available == 0:
+    await message.answer(f"❌ К сожалению, {label} сейчас закончились.\nПожалуйста, выберите другой пакет.")
+    return
     kb.button(text="⬅️ Назад ко всем категориям")
     kb.adjust(1)
     await message.answer("Категория: UC Pubg Mobile", reply_markup=kb.as_markup(resize_keyboard=True))
