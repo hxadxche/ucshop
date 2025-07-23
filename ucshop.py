@@ -576,26 +576,25 @@ async def resume_order(call: CallbackQuery, state: FSMContext):
     await state.update_data(order_id=order_id, label=label, quantity=qty, unit_price=int(price / qty))
 
     # Клавиатура выбора оплаты
-payment_choice_kb = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Оплатить картой", callback_data="pay_card")],
-        [InlineKeyboardButton(text="🟣 Оплатить через ЮMoney", callback_data="pay_umoney")],
-        [InlineKeyboardButton(text="❌ Отменить заказ", callback_data="cancel_order")]
-    ]
-)
+    payment_choice_kb = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="💳 Оплатить картой")],
+            [KeyboardButton(text="🟣 Оплатить через ЮMoney")],
+            [KeyboardButton(text="❌ Отменить заказ")]
+        ],
+        resize_keyboard=True
+    )
 
     # Сообщение о заказе
-await call.message.answer(
-    f"<b>📦 Заказ:</b> {label}\n"
-    f"<b>🔢 Кол-во:</b> {qty}\n"
-    f"<b>💰 Сумма:</b> {price} RUB\n\n"
-    f"Выберите способ оплаты:",
-    reply_markup=payment_choice_kb
-)
+    await call.message.answer(
+        f"<b>📦 Заказ:</b> {label}\n"
+        f"<b>🔢 Кол-во:</b> {qty}\n"
+        f"<b>💰 Сумма:</b> {price} RUB\n\n"
+        f"Выберите способ оплаты:",
+        reply_markup=payment_choice_kb
+    )
 
-
-
-await call.answer()
+    await call.answer()
 
     # Получаем пользователя
     cursor.execute("SELECT id, username, full_name, registered_at FROM users WHERE id = ?", (user_id,))
@@ -625,7 +624,6 @@ await call.answer()
         text += "Нет заказов."
 
     await call.message.answer(text)
-
 
 
 async def main():
