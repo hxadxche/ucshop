@@ -1,7 +1,7 @@
 import asyncio
 import sqlite3
 from datetime import datetime, timedelta
-
+from functools import partial
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
@@ -141,10 +141,13 @@ async def show_categories(message: Message):
 @dp.message(F.text == "UC Pubg Mobile")
 async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
-    for label, price in [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]:
-        cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
-        count = cursor.fetchone()[0]
-        kb.button(text=f"{label} | {price} RUB | {count} шт.")
+   for label, price in uc_packages:
+    async def make_handler(lbl, prc):
+        @dp.message(F.text.startswith(lbl))
+        async def dynamic_handler(message: Message, state: FSMContext):
+            await handle_uc_package(message, state, lbl, prc)
+    asyncio.get_event_loop().create_task(make_handler(label, price))
+
     kb.button(text="⬅️ Назад ко всем категориям")
     kb.adjust(1)
     await message.answer("Категория: UC Pubg Mobile", reply_markup=kb.as_markup(resize_keyboard=True))
