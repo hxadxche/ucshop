@@ -557,6 +557,7 @@ async def resume_order(call: CallbackQuery, state: FSMContext):
     order_id = int(call.data.split("_")[1])
     user_id = call.from_user.id
 
+    # Получаем заказ
     cursor.execute("SELECT label, quantity, price, yoomoney_label, status FROM orders WHERE id = ? AND user_id = ?", (order_id, user_id))
     order = cursor.fetchone()
 
@@ -570,9 +571,11 @@ async def resume_order(call: CallbackQuery, state: FSMContext):
         await call.answer("⚠️ Этот заказ уже завершён или отменён", show_alert=True)
         return
 
+    # Сохраняем состояние
     await state.set_state(UCState.awaiting_payment_method)
-    await state.update_data(order_id=order_id, label=label, quantity=qty, unit_price=int(price/qty))
+    await state.update_data(order_id=order_id, label=label, quantity=qty, unit_price=int(price / qty))
 
+    # Клавиатура выбора оплаты
     payment_choice_kb = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="💳 Оплатить картой")],
@@ -582,6 +585,7 @@ async def resume_order(call: CallbackQuery, state: FSMContext):
         resize_keyboard=True
     )
 
+    # Сообщение о заказе
     await call.message.answer(
         f"<b>📦 Заказ:</b> {label}\n"
         f"<b>🔢 Кол-во:</b> {qty}\n"
@@ -592,8 +596,19 @@ async def resume_order(call: CallbackQuery, state: FSMContext):
 
     await call.answer()
 
+    # Получаем пользователя
+    cursor.execute("SELECT id, username, full_name, registered_at FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
 
-text = (
+    # Получаем последние заказы
+    cursor.execute(
+        "SELECT label, quantity, price, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 5",
+        (user_id,)
+    )
+    orders = cursor.fetchall()
+
+    # Формируем текст профиля
+    text = (
         f"<b>👤 Профиль</b>\n"
         f"Имя: {user[2]}\n"
         f"Username: @{user[1]}\n"
@@ -602,13 +617,14 @@ text = (
         f"<b>📜 Последние заказы:</b>\n"
     )
 
-if orders:
-    for label, qty, price, date in orders:
+    if orders:
+        for label, qty, price, date in orders:
             text += f"• {qty} x {label} — {price} RUB ({date})\n"
     else:
         text += "Нет заказов."
 
-    await message.answer(text)
+    await call.message.answer(text)
+
 
 
 async def main():
