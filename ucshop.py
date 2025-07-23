@@ -359,15 +359,15 @@ async def confirm_payment(call: CallbackQuery):
 
     # Получаем последний заказ
     cursor.execute(
-    "SELECT label, quantity FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 1",
-    (user_id,)
-)
+        "SELECT id, label, quantity FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+        (user_id,)
+    )
     order = cursor.fetchone()
     if not order:
         await call.answer("❌ Заказ не найден.", show_alert=True)
         return
 
-    label, quantity = order
+    order_id, label, quantity = order
 
     # Ищем доступные коды
     cursor.execute(
@@ -384,18 +384,20 @@ async def confirm_payment(call: CallbackQuery):
     cursor.executemany("UPDATE uc_codes SET used = 1 WHERE id = ?", [(cid,) for cid in code_ids])
     conn.commit()
 
-    # Отправка кодов пользователю
-text = f"✅ Ваш платёж подтверждён!\n🎁 Ваши UC-коды ({label}):\n\n"
-text += "\n".join(f"<code>{row[1]}</code>" for row in codes)
+    # Обновляем статус заказа
+    cursor.execute("UPDATE orders SET status = 'completed' WHERE id = ?", (order_id,))
+    conn.commit()
 
-cursor.execute("UPDATE orders SET status = 'completed' WHERE order_id = ?", (order_id,))
-conn.commit()
+    # Формируем текст и отправляем
+    text = f"✅ Ваш платёж подтверждён!\n🎁 Ваши UC-коды ({label}):\n\n"
+    text += "\n".join(f"<code>{row[1]}</code>" for row in codes)
 
-try:
-    await bot.send_message(user_id, text)
-    await call.answer("Коды отправлены пользователю ✅", show_alert=True)
-except:
-    await call.answer("❌ Не удалось отправить пользователю.", show_alert=True)
+    try:
+        await bot.send_message(user_id, text)
+        await call.answer("Коды отправлены пользователю ✅", show_alert=True)
+    except:
+        await call.answer("❌ Не удалось отправить пользователю.", show_alert=True)
+
 
 
 
