@@ -66,6 +66,12 @@ async def fetchall(query, *args):
     async with pool.acquire() as conn:
         async with conn.transaction():
             return await conn.fetch(query, *args)
+async def fetchval(query, *args):
+    print("📥 Получаем соединение из пула...")
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            return await conn.fetchval(query, *args)
 async def init_db():
     print("🔗 Проверка подключения к базе...")
     pool = await get_pg_pool()
@@ -419,7 +425,7 @@ async def confirm_payment(call: CallbackQuery):
     label = order['label']
     quantity = order['quantity']
 
-    codes = await fetch(
+    codes = await fetchall(
         "SELECT id, code FROM uc_codes WHERE label = $1 AND used = FALSE LIMIT $2",
         label, quantity
     )
@@ -623,7 +629,7 @@ async def profile(message: Message, state: FSMContext):
         f"<b>📜 Последние заказы:</b>\n"
     )
 
-    orders = await fetch(
+    orders = await fetchall(
         "SELECT id, label, quantity, price, status, created_at FROM orders "
         "WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5",
         user_id
