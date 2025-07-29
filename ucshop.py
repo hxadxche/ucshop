@@ -19,11 +19,11 @@ API_URL = "https://synet.syntex-dev.ru/redeem"
 API_TOKEN = "7712356486de523a"  # замените на свой
 
 DB_CONFIG = {
-    'user': 'postgres.vrxdddeeitbfjgkebeki',
-    'password': 'vY9PGj2lFu6saX5w',
-    'database': 'postgres',
-    'host': 'aws-0-eu-north-1.pooler.supabase.com',
-    'port': '6543',
+    'user': 'postgres',
+    'password': 'xRbtSljvnJweJPlmYvjbiCdvbqYequqF',
+    'database': 'railway',
+    'host': 'postgres.railway.internal',
+    'port': '5432',
 }
 
 _pg_pool = None  # глобальная переменная
