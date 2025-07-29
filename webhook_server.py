@@ -8,7 +8,7 @@ from aiogram.enums import ParseMode
 
 app = Flask(__name__)
 NOTIFICATION_SECRET = "sgtipI6iQlaXCB1XCgksTaP5"
-BOT_TOKEN = "8024102805:AAEcu22cIkfe49UNNC_XlKB1mZMxFRx6aDk"
+BOT_TOKEN = "7587423228:AAHhVNFsKeWo8ck7xdDL1U8NHzTFsqDgZBE"
 
 def verify_sha1(data: dict):
     raw_string = (
@@ -97,7 +97,7 @@ def yoomoney_webhook():
         finally:
             await bot.session.close()
 
-    asyncio.run(send_codes())
+    asyncio.run(send_codes()).
 
     conn.close()
     return "OK", 200
