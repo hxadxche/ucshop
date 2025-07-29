@@ -273,7 +273,7 @@ async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
     for label, price in [("60 UC", 80), ("325 UC", 390), ("660 UC", 800),
                          ("1800 UC", 2050), ("3850 UC", 4000), ("8100 UC", 7700)]:
-        count = await fetchval(
+        count = await fetchall(
             "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
             label
         )
