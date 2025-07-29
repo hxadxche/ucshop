@@ -9,7 +9,7 @@ import asyncpg
 app = Flask(__name__)
 
 # Настройки
-NOTIFICATION_SECRET = "sgtipI6iQlaXCB1XCgksTaP5"
+NOTIFICATION_SECRET = "LLTctXQ8eqPvB1SInwzxjE5w"
 BOT_TOKEN = "7587423228:AAHhVNFsKeWo8ck7xdDL1U8NHzTFsqDgZBE"
 
 # Функция подключения к PostgreSQL
