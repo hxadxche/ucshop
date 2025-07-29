@@ -97,7 +97,7 @@ def yoomoney_webhook():
         finally:
             await bot.session.close()
 
-    asyncio.run(send_codes()).
+    asyncio.run(send_codes())
 
     conn.close()
     return "OK", 200
