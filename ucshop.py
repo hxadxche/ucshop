@@ -66,7 +66,11 @@ async def fetchall(query, *args):
     async with pool.acquire() as conn:
         async with conn.transaction():
             return await conn.fetch(query, *args)
-
+async def init_db():
+    print("🔗 Проверка подключения к базе...")
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("SELECT 1")  # просто проверка соединения
 
 def activate_uc_code(player_id, code):
     headers = {
