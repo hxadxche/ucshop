@@ -755,7 +755,8 @@ ADMIN_IDS = [ 1001953510 ]
 
 
 async def notify_admin_all_codes():
-    all_codes = await fetch("SELECT code, label, used FROM uc_codes")
+    async with _pg_pool.acquire() as conn:
+        all_codes = await conn.fetch("SELECT code, label, used FROM uc_codes")
 
     if not all_codes:
         return
