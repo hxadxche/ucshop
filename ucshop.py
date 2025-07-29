@@ -112,7 +112,7 @@ main_menu_kb = ReplyKeyboardMarkup(
 )
 
 # === Состояния ===
-YOOMONEY_WALLET = "4100119206598101"
+YOOMONEY_WALLET = "4100111899459093"
 
 # === Bot config ===
 BOT_TOKEN = "7587423228:AAHhVNFsKeWo8ck7xdDL1U8NHzTFsqDgZBE"
@@ -556,7 +556,7 @@ async def payment_umoney(message: Message, state: FSMContext):
     )
 
     quickpay = Quickpay(
-        receiver="4100119206598101",
+        receiver="4100111899459093",
         quickpay_form="shop",
         targets="Sponsor this project",
         paymentType="AB",
