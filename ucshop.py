@@ -66,12 +66,6 @@ async def fetchall(query, *args):
     async with pool.acquire() as conn:
         async with conn.transaction():
             return await conn.fetch(query, *args)
-async def on_shutdown():
-    global _pg_pool
-    if _pg_pool is not None:
-        print("🔌 Закрытие пула соединений...")
-        await _pg_pool.close()
-        print("✅ Пул соединений закрыт.")
 
 
 
