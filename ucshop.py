@@ -1,7 +1,7 @@
+import asyncpg
 import asyncio
-import sqlite3
 from datetime import datetime, timedelta
-from functools import partial
+from yoomoney import Quickpay
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
@@ -11,101 +11,251 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-# Твой ЮMoney кошелек (замени на свой номер)
-YOOMONEY_WALLET = "4100111899459093"
+from functools import partial
+import requests
+from aiogram.types import ReplyKeyboardRemove
 
-# === SQLite ===
-conn = sqlite3.connect("users_orders.db")
-cursor = conn.cursor()
-try:
-    cursor.execute("ALTER TABLE orders ADD COLUMN yoomoney_label TEXT UNIQUE")
-    conn.commit()
-except sqlite3.OperationalError:
-    # Колонка уже есть — игнорируем ошибку
-    pass
+API_URL = "https://synet.syntex-dev.ru/redeem"
+API_TOKEN = "7712356486de523a"  # замените на свой
 
-# Пользователи
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
-        username TEXT,
-        first_name TEXT,
-        reg_date TEXT
-    )
-""")
+DB_CONFIG = {
+    'user': 'postgres.vrxdddeeitbfjgkebeki',
+    'password': 'vY9PGj2lFu6saX5w',
+    'database': 'postgres',
+    'host': 'aws-0-eu-north-1.pooler.supabase.com',
+    'port': '6543',
+}
 
-# UC-коды
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS uc_codes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        label TEXT,
-        code TEXT UNIQUE,
-        used INTEGER DEFAULT 0,
-        order_id INTEGER
-    )
-""")
+_pg_pool = None  # глобальная переменная
 
-# Заказы (исправлено: pack_label → label, amount → price для согласованности)
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        label TEXT NOT NULL,
-        quantity INTEGER NOT NULL,
-        price REAL NOT NULL,
-        status TEXT DEFAULT 'pending' CHECK(status IN ('pending','completed','cancelled')),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        yoomoney_label TEXT UNIQUE
-    )
-""")
-conn.commit()
-# После создания таблиц
+async def get_pg_pool():
+    global _pg_pool  # СНАЧАЛА объявляем global — потом используем
+    if _pg_pool is None:
+        print("⏳ Подключение к PostgreSQL...")
+        _pg_pool = await asyncpg.create_pool(
+            **DB_CONFIG,
+            min_size=1,
+            max_size=5,
+            max_inactive_connection_lifetime=60,
+            max_queries=50000
+        )
+        print("✅ Подключено к PostgreSQL.")
+    return _pg_pool
 
 
-# Добавление UC-кодов, только если их ещё нет
-cursor.execute("SELECT COUNT(*) FROM uc_codes")
-if cursor.fetchone()[0] == 0:
+
+
+
+async def execute(query, *args):
+    print("📥 Получаем соединение из пула...")
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(query, *args)
+
+async def fetchrow(query, *args):
+    print("📥 Получаем соединение из пула...")
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            return await conn.fetchrow(query, *args)
+
+async def fetchall(query, *args):
+    print("📥 Получаем соединение из пула...")
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            return await conn.fetch(query, *args)
+async def on_shutdown():
+    global _pg_pool
+    if _pg_pool is not None:
+        print("🔌 Закрытие пула соединений...")
+        await _pg_pool.close()
+        print("✅ Пул соединений закрыт.")
+
+
+
+
+async def init_db():
+    # Создание таблицы users
+    await execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id BIGINT PRIMARY KEY,
+            username TEXT,
+            first_name TEXT,
+            reg_date TEXT,
+            pubg_id TEXT
+        )
+    """)
+
+    # Создание таблицы uc_codes
+    await execute("""
+        CREATE TABLE IF NOT EXISTS uc_codes (
+            id SERIAL PRIMARY KEY,
+            label TEXT,
+            code TEXT UNIQUE,
+            used BOOLEAN DEFAULT FALSE,
+            order_id INTEGER
+        )
+    """)
+
+    # Создание таблицы orders
+    await execute("""
+        CREATE TABLE IF NOT EXISTS orders (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            label TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            price REAL NOT NULL,
+            status TEXT DEFAULT 'pending' CHECK(status IN ('pending','completed','cancelled')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            yoomoney_label TEXT UNIQUE
+        )
+    """)
+
+    # Добавление тестовых данных в uc_codes
     sample_data = [
-        ("60 UC", "60CODE1"), ("60 UC", "60CODE2"), ("60 UC", "60CODE3"), ("60 UC", "60CODE4"), ("60 UC", "60CODE5"),
-        ("325 UC", "325CODE1"), ("325 UC", "325CODE2"), ("325 UC", "325CODE3"), ("325 UC", "325CODE4"),
-        ("385 UC", "385CODE1"), ("385 UC", "385CODE2"), ("385 UC", "385CODE3"), ("385 UC", "385CODE4"),
-        ("660 UC", "660CODE1"), ("660 UC", "660CODE2"), ("660 UC", "660CODE3"), ("660 UC", "660CODE4"),
-        ("720 UC", "720CODE1"), ("720 UC", "720CODE2"), ("720 UC", "720CODE3"), ("720 UC", "720CODE4"),
-        ("1320 UC", "1320CODE1"), ("1320 UC", "1320CODE2"), ("1320 UC", "1320CODE3"), ("1320 UC", "1320CODE4"),
+        ("60 UC", "HnsUwDVS2C23G6j8Hb"), ("60 UC", "HnsUwUVM222eG7g9L9"),
+        ("60 UC", "HnsUwvVH2F24G8ge5b"), ("60 UC", "HnsUwqVC2m21G7gaQb"),
+        ("325 UC", "TMTCq5Np2Z26B2af24"), ("325 UC", "Tsfh4jb728207239f7"),
+        ("325 UC", "CSSAyqBw2U21319dg9"), ("325 UC", "CSSAy4BJ2b2130G0A0"),
+        ("660 UC", "660CODE1"), ("660 UC", "660CODE2"),
+        ("660 UC", "660CODE3"), ("660 UC", "660CODE4"),
+        ("1800 UC", "1800CODE1"), ("1800 UC", "1800CODE2"),
+        ("1800 UC", "1800CODE3"), ("1800 UC", "1800CODE4"),
+        ("3850 UC", "3850CODE1"), ("3850 UC", "3850CODE2"),
+        ("3850 UC", "3850CODE3"), ("3850 UC", "3850CODE4"),
+        ("8100 UC", "8100CODE1"), ("8100 UC", "8100CODE2"),
+        ("8100 UC", "8100CODE3"), ("8100 UC", "8100CODE4"),
     ]
-    for label, code in sample_data:
-        cursor.execute("INSERT OR IGNORE INTO uc_codes (label, code) VALUES (?, ?)", (label, code))
-    conn.commit()
 
-# === Bot config ===
-API_TOKEN = "7587423228:AAHhVNFsKeWo8ck7xdDL1U8NHzTFsqDgZBE"
-bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-dp = Dispatcher(storage=MemoryStorage())
+    # Очистка таблицы перед добавлением новых данных
+    await execute("DELETE FROM uc_codes")
+
+    # Вставка новых данных
+    for label, code in sample_data:
+        await execute(
+            "INSERT INTO uc_codes (label, code) VALUES ($1, $2)",
+            label, code
+        )
+
+
+def activate_uc_code(player_id, code):
+    headers = {
+        "Authorization": f"Bearer {API_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "codeType": "UC",
+        "playerId": str(player_id),
+        "code": code
+    }
+
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("success"):
+                return True, f"✅ UC-код успешно активирован для ID {player_id}"
+            else:
+                return False, f"⚠️ Не удалось активировать код: {data.get('message')}"
+        else:
+            return False, f"❌ Ошибка {response.status_code}: {response.text}"
+    except Exception as e:
+        return False, f"🚫 Ошибка подключения к API: {str(e)}"
+
+
+main_menu_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Купить UC"), KeyboardButton(text="UC в наличии")],
+        [KeyboardButton(text="Помощь"), KeyboardButton(text="Профиль")]
+    ],
+    resize_keyboard=True
+)
 
 # === Состояния ===
+YOOMONEY_WALLET = "4100119206598101"
+
+# === Bot config ===
+BOT_TOKEN = "7587423228:AAHhVNFsKeWo8ck7xdDL1U8NHzTFsqDgZBE"
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+dp = Dispatcher(storage=MemoryStorage())
+
+
 class UCState(StatesGroup):
     choosing_quantity = State()
     choosing_payment_method = State()
     waiting_for_receipt_photo = State()
     waiting_for_umoney_payment = State()
-    awaiting_payment_method = State()
+    entering_pubg_id = State()
+
 
 # === Команда /start ===
 @dp.message(F.text == "/start")
 async def start(message: Message, state: FSMContext):
     user_id = message.from_user.id
-    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
-    if cursor.fetchone() is None:
-        cursor.execute(
-            "INSERT INTO users (user_id, username, first_name, reg_date) VALUES (?, ?, ?, ?)",
-            (
-                user_id,
-                message.from_user.username,
-                message.from_user.first_name,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            )
+    user = await fetchrow("SELECT * FROM users WHERE user_id = $1", user_id)
+
+    if user is None:
+        await execute(
+            "INSERT INTO users (user_id, username, first_name, reg_date) VALUES ($1, $2, $3, $4)",
+            user_id,
+            message.from_user.username,
+            message.from_user.first_name,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
-        conn.commit()
+
+    result = await fetchrow("SELECT pubg_id FROM users WHERE user_id = $1", user_id)
+    if not result or not result['pubg_id']:
+        await state.set_state(UCState.entering_pubg_id)
+
+        await message.answer(
+            "⚠️ <b>Важно:</b> Пожалуйста, убедитесь, что вы правильно ввели свой PUBG ID.\n"
+            "Если ID указан неверно, код может быть активирован на другой аккаунт.\n"
+            "❗ Ответственность за неверный ID несёт покупатель.",
+            parse_mode="HTML"
+        )
+        await message.answer("👤 Пожалуйста, отправьте свой PUBG ID, чтобы продолжить.")
+        return
+
+    await state.clear()
+    await message.answer(
+        "⚡️Приветствуем тебя в автоматическом боте покупки UC кодов 🔥\n\n"
+        "Официальная группа: https://t.me/CHUDO_UC_SHOP\n\n"
+        "Бот работает 24/7 с паками от 60 UC\n\n"
+        "Если возникнут какие-то вопросы: @chudoo_19",
+        reply_markup=main_menu_kb
+    )
+
+
+@dp.message(F.text == "UC в наличии")
+async def uc_in_stock(message: Message):
+    stock_info = "<b>📦 UC в наличии:</b>\n\n"
+    for label in ["60 UC", "325 UC", "660 UC", "1800 UC", "3850 UC", "8100 UC"]:
+        count = await fetchval(
+            "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
+            label
+        )
+        stock_info += f"• {label} — {count} шт.\n"
+    await message.answer(stock_info)
+
+
+@dp.message(F.text == "Купить UC")
+async def show_categories(message: Message):
+    kb = ReplyKeyboardBuilder()
+    kb.button(text="UC Pubg Mobile")
+    await message.answer("Выберите категорию:", reply_markup=kb.as_markup(resize_keyboard=True))
+
+
+@dp.message(UCState.entering_pubg_id)
+async def handle_pubg_id(message: Message, state: FSMContext):
+    pubg_id = message.text.strip()
+    user_id = message.from_user.id
+
+    await execute(
+        "UPDATE users SET pubg_id = $1 WHERE user_id = $2",
+        pubg_id, user_id
+    )
 
     kb = ReplyKeyboardBuilder()
     kb.button(text="Купить UC")
@@ -123,51 +273,17 @@ async def start(message: Message, state: FSMContext):
         reply_markup=kb.as_markup(resize_keyboard=True)
     )
 
-# === Список пакетов ===
-uc_packages = [
-    ("60 UC", 80),
-    ("325 UC", 380),
-    ("385 UC", 450),
-    ("660 UC", 790),
-    ("720 UC", 900),
-    ("1320 UC", 1580)
-]
-
-# === Хендлеры для каждого пакета ===
-def register_uc_handlers():
-    for label, price in uc_packages:
-        @dp.message(F.text == label)
-        async def handle_dynamic_uc(message: Message, state: FSMContext, lbl=label, prc=price):
-            await handle_uc_package(message, state, lbl, prc)
-
-register_uc_handlers()  # 👈 вызывается 1 раз после всех @dp.message
-
-# === Хендлер: Покупка UC (категория) ===
-@dp.message(F.text == "UC в наличии")
-async def uc_in_stock(message: Message):
-    stock_info = "<b>📦 UC в наличии:</b>\n\n"
-    for label in [pkg[0] for pkg in uc_packages]:
-        cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
-        count = cursor.fetchone()[0]
-        stock_info += f"• {label} — {count} шт.\n"
-    await message.answer(stock_info)
-
-@dp.message(F.text == "Купить UC")
-async def show_categories(message: Message):
-    kb = ReplyKeyboardBuilder()
-    kb.button(text="UC Pubg Mobile")
-    await message.answer("Выберите категорию:", reply_markup=kb.as_markup(resize_keyboard=True))
 
 @dp.message(F.text == "UC Pubg Mobile")
 async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
-
-    for label, _ in uc_packages:
-        cursor.execute("SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0", (label,))
-        count = cursor.fetchone()[0]
-        button_text = f"{label} ({count} шт.)"
-        kb.button(text=button_text)
-
+    for label, price in [("60 UC", 80), ("325 UC", 390), ("660 UC", 800),
+                         ("1800 UC", 2050), ("3850 UC", 4000), ("8100 UC", 7700)]:
+        count = await fetchval(
+            "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
+            label
+        )
+        kb.button(text=f"{label} | {price} RUB | {count} шт.")
     kb.button(text="⬅️ Назад ко всем категориям")
     kb.adjust(1)
     await message.answer("Категория: UC Pubg Mobile", reply_markup=kb.as_markup(resize_keyboard=True))
@@ -192,12 +308,15 @@ async def send_quantity_menu(message: Message, quantity: int, unit_price: int, l
         reply_markup=kb.as_markup(resize_keyboard=True)
     )
 
+
 async def handle_uc_package(message: Message, state: FSMContext, label: str, unit_price: int):
     await state.set_state(UCState.choosing_quantity)
     await state.update_data(quantity=1, unit_price=unit_price, label=label)
     await send_quantity_menu(message, 1, unit_price, label)
 
-uc_packages = [("60 UC", 80), ("325 UC", 380), ("385 UC", 450), ("660 UC", 790), ("720 UC", 900), ("1320 UC", 1580)]
+
+uc_packages = [("60 UC", 80), ("325 UC", 390), ("660 UC", 800),
+               ("1800 UC", 2050), ("3850 UC", 4000), ("8100 UC", 7700)]
 
 for label, price in uc_packages:
     @dp.message(F.text.startswith(label))
@@ -212,20 +331,20 @@ async def change_quantity(message: Message, state: FSMContext):
     await state.update_data(quantity=quantity)
     await send_quantity_menu(message, quantity, data.get("unit_price", 0), data.get("label", "UC"))
 
+
 @dp.message(UCState.choosing_quantity, F.text == "✅ Подтверждаю")
 async def confirm_order(message: Message, state: FSMContext):
     data = await state.get_data()
-    quantity    = data.get("quantity", 1)
-    unit_price  = data.get("unit_price", 0)
-    label       = data.get("label", "UC")
+    quantity    = data["quantity"]
+    unit_price  = data["unit_price"]
+    label       = data["label"]
     total_price = quantity * unit_price
 
-    # Проверка наличия
-    cursor.execute(
-        "SELECT COUNT(*) FROM uc_codes WHERE label = ? AND used = 0",
-        (label,)
+    # проверим наличие
+    available = await fetchval(
+        "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
+        label
     )
-    available = cursor.fetchone()[0]
 
     if available < quantity:
         kb = ReplyKeyboardBuilder()
@@ -239,21 +358,19 @@ async def confirm_order(message: Message, state: FSMContext):
         )
         return
 
-        # Сохраняем заказ
     user_id = message.from_user.id
-    cursor.execute(
-    "INSERT INTO orders (user_id, label, quantity, price) VALUES (?, ?, ?, ?)",
-    (user_id, label, quantity, total_price)
-)
+    row = await fetchrow(
+        """
+        INSERT INTO orders (user_id, label, quantity, price)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+        """,
+        user_id, label, quantity, total_price
+    )
+    order_id = row["id"]
 
-    conn.commit()
-    # Получаем ID последнего заказа
-    order_id = cursor.lastrowid
-
-    # Сохраняем в состояние
     await state.update_data(order_id=order_id)
 
-    # Выбор способа оплаты
     await state.set_state(UCState.choosing_payment_method)
     kb = ReplyKeyboardBuilder()
     kb.button(text="💳 Оплата переводом на карту")
@@ -291,7 +408,6 @@ async def payment_by_card(message: Message, state: FSMContext):
         f"<b>❗️ Обязательно отправьте фото чека после оплаты</b>."
     )
 
-    # Клавиатура для подтверждения оплаты
     kb = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="✅ Я оплатил")],
@@ -303,28 +419,31 @@ async def payment_by_card(message: Message, state: FSMContext):
     await message.answer("После оплаты нажмите «✅ Я оплатил» и отправьте фото чека.", reply_markup=kb)
 
 
-
-
 @dp.message(F.text == "✅ Я оплатил")
 async def handle_payment_confirmation(message: Message, state: FSMContext):
-    # Отправляем сообщение, что пользователь оплатил
     await message.answer("💳 Вы подтвердили оплату! Пожалуйста, отправьте фото чека (скриншот подтверждения перевода).")
-
-    # Переходим в состояние ожидания фото
     await state.set_state(UCState.waiting_for_receipt_photo)
-
 
 
 @dp.message(UCState.waiting_for_receipt_photo, F.photo)
 async def handle_receipt_photo(message: Message, state: FSMContext):
-    # Проверка, что фотография есть
     photo = message.photo[-1] if message.photo else None
     if not photo:
         await message.answer("❌ Пожалуйста, отправьте фото чека.")
         return
 
-    ADMIN_ID = 1001953510  # Твой ID
+    ADMIN_IDS = [1073756996, 1001953510, 1349751236]
     user = message.from_user
+
+    try:
+        await message.bot.edit_message_reply_markup(
+            chat_id=message.chat.id,
+            message_id=message.message_id - 1,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[])
+        )
+    except Exception as e:
+        print(f"❗ Не удалось удалить клавиатуру: {e}")
+
     caption = (
         f"📩 Новый платёж по карте!\n\n"
         f"👤 Пользователь: @{user.username or 'без username'}\n"
@@ -337,69 +456,126 @@ async def handle_receipt_photo(message: Message, state: FSMContext):
         [InlineKeyboardButton(text="❌ Отказ", callback_data=f"reject_{user.id}")]
     ])
 
-    # Отправляем фото администратору
-    await bot.send_photo(
-        chat_id=ADMIN_ID,
-        photo=photo.file_id,  # Фото чека
-        caption=caption,
-        reply_markup=keyboard
-    )
+    for admin_id in ADMIN_IDS:
+        try:
+            await message.bot.send_photo(
+                chat_id=admin_id,
+                photo=photo.file_id,
+                caption=caption,
+                reply_markup=keyboard
+            )
+        except Exception as e:
+            print(f"❗ Не удалось отправить фото админу {admin_id}: {e}")
 
-    # Сообщаем пользователю, что чек отправлен на проверку
     await message.answer("✅ Чек отправлен администратору на проверку. Мы сообщим, как только он подтвердит оплату.")
-
-    # Очищаем состояние
     await state.clear()
-
 
 
 @dp.callback_query(F.data.startswith("confirm_"))
 async def confirm_payment(call: CallbackQuery):
     user_id = int(call.data.split("_")[1])
-
-    # Получаем последний заказ
-    cursor.execute(
-        "SELECT id, label, quantity FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 1",
-        (user_id,)
+    order = await fetchrow(
+        "SELECT id, label, quantity FROM orders WHERE user_id = $1 AND status = 'pending' ORDER BY id DESC LIMIT 1",
+        user_id
     )
-    order = cursor.fetchone()
+
     if not order:
         await call.answer("❌ Заказ не найден.", show_alert=True)
         return
 
-    order_id, label, quantity = order
+    order_id = order['id']
+    label = order['label']
+    quantity = order['quantity']
 
-    # Ищем доступные коды
-    cursor.execute(
-        "SELECT id, code FROM uc_codes WHERE label = ? AND used = 0 LIMIT ?",
-        (label, quantity)
+    codes = await fetch(
+        "SELECT id, code FROM uc_codes WHERE label = $1 AND used = FALSE LIMIT $2",
+        label, quantity
     )
-    codes = cursor.fetchall()
+
     if len(codes) < quantity:
         await call.answer("❌ Недостаточно кодов в наличии.", show_alert=True)
         return
 
-    # Отмечаем коды как использованные
-    code_ids = [row[0] for row in codes]
-    cursor.executemany("UPDATE uc_codes SET used = 1 WHERE id = ?", [(cid,) for cid in code_ids])
-    conn.commit()
-
-    # Обновляем статус заказа
-    cursor.execute("UPDATE orders SET status = 'completed' WHERE id = ?", (order_id,))
-    conn.commit()
-
-    # Формируем текст и отправляем
-    text = f"✅ Ваш платёж подтверждён!\n🎁 Ваши UC-коды ({label}):\n\n"
-    text += "\n".join(f"<code>{row[1]}</code>" for row in codes)
-
     try:
-        await bot.send_message(user_id, text)
+        for code in codes:
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Активировать через бота",
+                                      callback_data=f"activate:{code['code']}:{user_id}")],
+                [InlineKeyboardButton(text="🌐 Открыть Midasbuy",
+                                      url="https://www.midasbuy.com/midasbuy/ru/redeem/pubgm")]
+            ])
+
+            await bot.send_message(
+                chat_id=user_id,
+                text=f"🎁 Ваш UC-код ({label}):\n\n<code>{code['code']}</code>",
+                reply_markup=keyboard,
+                parse_mode="HTML"
+            )
+
+            await execute(
+                "UPDATE uc_codes SET used = TRUE WHERE id = $1",
+                code['id']
+            )
+
+        await execute(
+            "UPDATE orders SET status = 'completed' WHERE id = $1",
+            order_id
+        )
+
+        admin_msg = (
+                f"📤 Выданы коды:\n"
+                f"👤 Пользователь: <code>{user_id}</code>\n"
+                f"💳 Способ: КАРТА\n"
+                f"🏷 Пакет: {label}\n"
+                f"🔢 Кол-во: {quantity}\n"
+                f"🎁 Коды:\n" + "\n".join(f"<code>{code['code']}</code>" for code in codes)
+        )
+
+        ADMIN_IDS = [1073756996, 1001953510, 1349751236]
+        for admin_id in ADMIN_IDS:
+            try:
+                await bot.send_message(admin_id, admin_msg, parse_mode="HTML")
+            except Exception as e:
+                print(f"❌ Не удалось отправить админу: {e}")
+
+        kb = ReplyKeyboardBuilder()
+        kb.button(text="Купить UC")
+        kb.button(text="UC в наличии")
+        kb.button(text="Помощь")
+        kb.button(text="Профиль")
+        kb.adjust(2)
+
+        await bot.send_message(
+            chat_id=user_id,
+            text="📲 Возвращаю вас в главное меню. Выберите действие:",
+            reply_markup=kb.as_markup(resize_keyboard=True)
+        )
+
         await call.answer("Коды отправлены пользователю ✅", show_alert=True)
-    except:
-        await call.answer("❌ Не удалось отправить пользователю.", show_alert=True)
+
+    except Exception as e:
+        print(f"❌ Ошибка при выдаче кодов: {e}")
+        await call.answer("❗️ Не удалось отправить коды.", show_alert=True)
 
 
+@dp.callback_query(F.data.startswith("activate:"))
+async def handle_activation_callback(callback_query: CallbackQuery):
+    await callback_query.answer()
+    _, code, user_id = callback_query.data.split(":")
+    user_id = int(user_id)
 
+    result = await fetchrow(
+        "SELECT pubg_id FROM users WHERE user_id = $1",
+        user_id
+    )
+
+    if result and result['pubg_id']:
+        player_id = result['pubg_id']
+        success, msg = activate_uc_code(player_id, code)
+    else:
+        msg = "❌ PUBG ID не найден. Активация невозможна."
+
+    await bot.send_message(callback_query.from_user.id, msg)
 
 
 @dp.callback_query(F.data.startswith("reject_"))
@@ -434,30 +610,24 @@ async def payment_umoney(message: Message, state: FSMContext):
         await message.answer("❌ Ошибка при создании заказа.")
         return
 
-    # Уникальный label с таймштампом, чтобы избежать кэша
     yoomoney_label = f"{user_id}_{order_id}_{int(datetime.now().timestamp())}"
 
-    # Обновляем в базе
-    cursor.execute(
-        "UPDATE orders SET yoomoney_label = ? WHERE id = ?",
-        (yoomoney_label, order_id)
-    )
-    conn.commit()
-
-    # Генерация ссылки на оплату
-    payment_url = (
-    f"https://yoomoney.ru/quickpay/confirm?"
-    f"receiver={YOOMONEY_WALLET}&"
-    f"quickpay-form=shop&"
-    f"targets=Покупка UC-кодов (заказ #{order_id})&"
-    f"sum={total_price}&"
-    f"label={user_id}_{order_id}&"
-    f"paymentType=AC"
+    await execute(
+        "UPDATE orders SET yoomoney_label = $1 WHERE id = $2",
+        yoomoney_label, order_id
     )
 
+    quickpay = Quickpay(
+        receiver="4100119206598101",
+        quickpay_form="shop",
+        targets="Sponsor this project",
+        paymentType="AB",
+        sum=total_price,
+        label=yoomoney_label
+    )
 
     pay_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=payment_url)],
+        [InlineKeyboardButton(text="💳 Оплатить через ЮMoney", url=quickpay.redirected_url)],
         [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_order")]
     ])
 
@@ -474,9 +644,6 @@ async def payment_umoney(message: Message, state: FSMContext):
     await state.set_state(UCState.waiting_for_umoney_payment)
 
 
-
-
-
 @dp.message(UCState.choosing_payment_method, F.text == "✅ Я оплатил")
 async def wait_for_umoney_check(message: Message, state: FSMContext):
     await message.answer(
@@ -489,16 +656,8 @@ async def wait_for_umoney_check(message: Message, state: FSMContext):
 @dp.message(F.text == "❌ Отмена")
 async def cancel_any_state(message: Message, state: FSMContext):
     await state.clear()
-
-    kb = ReplyKeyboardBuilder()
-    kb.button(text="Купить UC")
-    kb.button(text="UC в наличии")
-    kb.button(text="Помощь")
-    kb.button(text="Профиль")
-    kb.adjust(2)
-
     await message.answer("❌ Действие отменено. Возвращаемся в главное меню:",
-                         reply_markup=kb.as_markup(resize_keyboard=True))
+                         reply_markup=main_menu_kb)
 
 
 @dp.message(F.text == "⬅️ Назад ко всем категориям")
@@ -516,118 +675,127 @@ async def help_msg(message: Message):
 @dp.message(F.text == "Профиль")
 async def profile(message: Message, state: FSMContext):
     user_id = message.from_user.id
-    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
-    user = cursor.fetchone()
+    user = await fetchrow("SELECT * FROM users WHERE user_id = $1", user_id)
+
     if not user:
         await message.answer("Вы ещё не зарегистрированы.")
         return
 
     text = (
         f"<b>👤 Профиль</b>\n"
-        f"Имя: {user[2]}\n"
-        f"Username: @{user[1]}\n"
-        f"ID: {user[0]}\n"
-        f"Дата регистрации: {user[3]}\n\n"
+        f"Имя: {user['first_name']}\n"
+        f"Username: @{user['username']}\n"
+        f"ID: {user['user_id']}\n"
+        f"🎮 PUBG ID: <code>{user['pubg_id'] if user['pubg_id'] else 'не указан'}</code>\n"
+        f"Дата регистрации: {user['reg_date']}\n\n"
         f"<b>📜 Последние заказы:</b>\n"
     )
 
-    cursor.execute(
-        "SELECT id, label, quantity, price, status, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 5",
-        (user_id,)
+    orders = await fetch(
+        "SELECT id, label, quantity, price, status, created_at FROM orders "
+        "WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5",
+        user_id
     )
-    orders = cursor.fetchall()
 
     btns = []
     for order in orders:
-        oid, label, qty, price, status, created = order
-        if status == "completed":
-            status_text = "✅ Выполнен"
-        elif status == "cancelled":
-            status_text = "❌ Отменён"
-        else:
-            status_text = "⏳ В обработке"
-            btns.append([InlineKeyboardButton(text=f"💳 Перейти к оплате #{oid}", callback_data=f"resume_{oid}")])
+        status_text = {
+            "completed": "✅ Выполнен",
+            "cancelled": "❌ Отменён"
+        }.get(order['status'], "⏳ В обработке")
 
-        text += f"• {qty} x {label} — {price} RUB ({created}) — {status_text}\n"
+        text += f"• {order['quantity']} x {order['label']} — {order['price']} RUB ({order['created_at']}) — {status_text}\n"
 
-    kb = InlineKeyboardMarkup(inline_keyboard=btns) if btns else None
-    await message.answer(text, reply_markup=kb)
-@dp.callback_query(F.data.startswith("resume_"))
-async def resume_order(call: CallbackQuery, state: FSMContext):
-    order_id = int(call.data.split("_")[1])
-    user_id = call.from_user.id
+        if order['status'] == 'pending':
+            btns.append([InlineKeyboardButton(
+                text=f"❌ Отменить заказ #{order['id']}",
+                callback_data=f"cancel_{order['id']}"
+            )])
 
-    # Получаем заказ
-    cursor.execute("SELECT label, quantity, price, yoomoney_label, status FROM orders WHERE id = ? AND user_id = ?", (order_id, user_id))
-    order = cursor.fetchone()
+    btns.append([InlineKeyboardButton(text="✏️ Изменить PUBG ID", callback_data="change_pubg_id")])
+    kb = InlineKeyboardMarkup(inline_keyboard=btns)
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
-    if not order:
-        await call.answer("❌ Заказ не найден", show_alert=True)
+
+@dp.callback_query(F.data.startswith("cancel_"))
+async def cancel_order_callback(call: CallbackQuery, state: FSMContext):
+    try:
+        order_id = int(call.data.split("_")[1])
+        user_id = call.from_user.id
+
+        status = await fetchval(
+            "SELECT status FROM orders WHERE id = $1 AND user_id = $2",
+            order_id, user_id
+        )
+
+        if status in ("cancelled", "completed"):
+            await call.answer("⚠️ Заказ уже отменён или завершён.", show_alert=True)
+            return
+
+        await execute(
+            "UPDATE orders SET status = 'cancelled' WHERE id = $1 AND user_id = $2",
+            order_id, user_id
+        )
+
+        await call.message.edit_text("❌ Заказ отменён.")
+        await bot.send_message(
+            chat_id=user_id,
+            text="📲 Возвращаю вас в главное меню. Выберите действие:",
+            reply_markup=main_menu_kb
+        )
+
+        await state.clear()
+        await call.answer("✅ Отменено")
+    except Exception as e:
+        print(f"[❌ Ошибка отмены] {e}")
+        await call.answer("❗️ Ошибка при отмене заказа", show_alert=True)
+
+
+@dp.callback_query(F.data == "change_pubg_id")
+async def change_pubg_id(call: CallbackQuery, state: FSMContext):
+    await call.message.edit_text("✏️ Пожалуйста, введите новый PUBG ID:")
+    await state.set_state(UCState.entering_pubg_id)
+
+
+ADMIN_IDS = [ 1001953510 ]
+
+
+async def notify_admin_all_codes():
+    all_codes = await fetch("SELECT code, label, used FROM uc_codes")
+
+    if not all_codes:
         return
 
-    label, qty, price, label_tag, status = order
+    msg = "📦 Все UC-коды в базе:\n\n"
+    for i, code in enumerate(all_codes, 1):
+        status = "✅" if code['used'] else "🟢"
+        msg += f"{i}. {status} <code>{code['code']}</code> ({code['label']})\n"
 
-    if status != "pending":
-        await call.answer("⚠️ Этот заказ уже завершён или отменён", show_alert=True)
-        return
+    chunks = [msg[i:i + 4000] for i in range(0, len(msg), 4000)]
 
-    # Сохраняем состояние
-    await state.set_state(UCState.awaiting_payment_method)
-    await state.update_data(order_id=order_id, label=label, quantity=qty, unit_price=int(price / qty))
+    for admin_id in ADMIN_IDS:
+        for chunk in chunks:
+            try:
+                await bot.send_message(chat_id=admin_id, text=chunk)
+            except Exception as e:
+                print(f"❌ Не удалось отправить админу {admin_id}: {e}")
 
-    # Клавиатура выбора оплаты
-    payment_choice_kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="💳 Оплатить картой")],
-            [KeyboardButton(text="🟣 Оплатить через ЮMoney")],
-            [KeyboardButton(text="❌ Отменить заказ")]
-        ],
-        resize_keyboard=True
-    )
 
-    # Сообщение о заказе
-    await call.message.answer(
-        f"<b>📦 Заказ:</b> {label}\n"
-        f"<b>🔢 Кол-во:</b> {qty}\n"
-        f"<b>💰 Сумма:</b> {price} RUB\n\n"
-        f"Выберите способ оплаты:",
-        reply_markup=payment_choice_kb
-    )
-
-    await call.answer()
-
-    # Получаем пользователя
-    cursor.execute("SELECT id, username, full_name, registered_at FROM users WHERE id = ?", (user_id,))
-    user = cursor.fetchone()
-
-    # Получаем последние заказы
-    cursor.execute(
-        "SELECT label, quantity, price, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 5",
-        (user_id,)
-    )
-    orders = cursor.fetchall()
-
-    # Формируем текст профиля
-    text = (
-        f"<b>👤 Профиль</b>\n"
-        f"Имя: {user[2]}\n"
-        f"Username: @{user[1]}\n"
-        f"ID: {user[0]}\n"
-        f"Дата регистрации: {user[3]}\n\n"
-        f"<b>📜 Последние заказы:</b>\n"
-    )
-
-    if orders:
-        for label, qty, price, date in orders:
-            text += f"• {qty} x {label} — {price} RUB ({date})\n"
-    else:
-        text += "Нет заказов."
-
-    await call.message.answer(text)
+async def on_startup(dispatcher):
+    await init_db()
+    await notify_admin_all_codes()
 
 
 async def main():
-    await dp.start_polling(bot)
+    try:
+        dp.startup.register(on_startup)
+        await dp.start_polling(bot)
+    finally:
+        if _pg_pool is not None:
+            await _pg_pool.close()
+            print("🔒 Пул соединений закрыт.")
+
+
 
 
 if __name__ == "__main__":
