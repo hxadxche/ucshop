@@ -119,7 +119,6 @@ YOOMONEY_WALLET = "4100111899459093"
 BOT_TOKEN = "7587423228:AAHhVNFsKeWo8ck7xdDL1U8NHzTFsqDgZBE"
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
-dp.include_router(admin_router)
 
 class UCState(StatesGroup):
     choosing_quantity = State()
