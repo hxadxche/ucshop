@@ -127,7 +127,8 @@ class UCState(StatesGroup):
     waiting_for_receipt_photo = State()
     waiting_for_umoney_payment = State()
     entering_pubg_id = State()
-
+class AdminState(StatesGroup):
+    waiting_for_code = State()
 
 # === Команда /start ===
 @dp.message(F.text == "/start")
@@ -655,6 +656,35 @@ async def handle_delete_user_callback(callback_query: CallbackQuery, state: FSMC
     await callback_query.message.answer("🧹 Введите user_id пользователя, которого нужно удалить:")
     # FSM → delete_user_state
     await message.answer("🔧 Админ-панель:", reply_markup=keyboard)
+    @admin_router.message(AdminState.waiting_for_code)
+async def process_new_code(message: Message, state: FSMContext):
+    code_text = message.text.strip()
+
+    if not code_text:
+        await message.answer("❌ Код не может быть пустым. Попробуйте снова.")
+        return
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+        cursor = conn.cursor()
+
+        # Тут ты можешь изменить label и price на нужные
+        label = "default"
+        price = 0
+        cursor.execute(
+            "INSERT INTO uc_codes (code, label, price, used) VALUES (%s, %s, %s, FALSE)",
+            (code_text, label, price)
+        )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        await message.answer(f"✅ Код <code>{code_text}</code> успешно добавлен в базу.")
+    except Exception as e:
+        await message.answer(f"❌ Ошибка при добавлении кода: {e}")
+
+    await state.clear()
 @dp.message(F.text == "Помощь")
 async def help_msg(message: Message):
     await message.answer("ℹ️ По всем вопросам обращайтесь: @chudoo_19")
