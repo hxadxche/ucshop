@@ -607,17 +607,53 @@ async def back_to_categories(message: Message):
 
 @admin_router.message(Command("admin"))
 async def admin_panel(message: Message):
-    # тут ты можешь ограничить доступ по user_id
-    if message.from_user.id not in [1001953510]:  # 🔁 ← замени на свой Telegram ID
+    if message.from_user.id not in [1001953510]:  # 🔁 Добавь своих админов
         await message.answer("❌ У тебя нет доступа.")
         return
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Добавить код", callback_data="admin_add_code")],
         [InlineKeyboardButton(text="➖ Удалить код", callback_data="admin_delete_code")],
-        [InlineKeyboardButton(text="📋 Все коды", callback_data="admin_list_codes")]
+        [InlineKeyboardButton(text="📋 Все коды", callback_data="admin_list_codes")],
+        [InlineKeyboardButton(text="✅ Активные заказы", callback_data="admin_active_orders")],
+        [InlineKeyboardButton(text="🔍 Поиск заказа по ID", callback_data="admin_search_order")],
+        [InlineKeyboardButton(text="👤 Все пользователи", callback_data="admin_all_users")],
+        [InlineKeyboardButton(text="🧹 Удалить пользователя", callback_data="admin_delete_user")]
     ])
+@admin_router.callback_query(F.data == "admin_add_code")
+async def handle_add_code_callback(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.message.answer("🔧 Введите код, который хотите добавить:")
+    # Здесь потом FSM → add_code_state
 
+@admin_router.callback_query(F.data == "admin_delete_code")
+async def handle_delete_code_callback(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.message.answer("🧹 Введите код, который хотите удалить:")
+    # FSM → delete_code_state
+
+@admin_router.callback_query(F.data == "admin_list_codes")
+async def handle_list_codes_callback(callback_query: CallbackQuery):
+    await callback_query.message.answer("📋 Здесь будут отображены все коды.")
+    # Тут в будущем — SELECT из базы и вывод в сообщении
+
+@admin_router.callback_query(F.data == "admin_active_orders")
+async def handle_active_orders_callback(callback_query: CallbackQuery):
+    await callback_query.message.answer("📦 Здесь будут активные (pending) заказы.")
+    # SELECT * FROM orders WHERE status = 'pending'
+
+@admin_router.callback_query(F.data == "admin_search_order")
+async def handle_search_order_callback(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.message.answer("🔍 Введите ID пользователя или order_id для поиска заказа:")
+    # FSM → search_order_state
+
+@admin_router.callback_query(F.data == "admin_all_users")
+async def handle_all_users_callback(callback_query: CallbackQuery):
+    await callback_query.message.answer("👥 Здесь будет список всех пользователей.")
+    # SELECT * FROM users LIMIT 10 или что-то подобное
+
+@admin_router.callback_query(F.data == "admin_delete_user")
+async def handle_delete_user_callback(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.message.answer("🧹 Введите user_id пользователя, которого нужно удалить:")
+    # FSM → delete_user_state
     await message.answer("🔧 Админ-панель:", reply_markup=keyboard)
 @dp.message(F.text == "Помощь")
 async def help_msg(message: Message):
