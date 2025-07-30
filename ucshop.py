@@ -608,7 +608,7 @@ async def back_to_categories(message: Message):
 
 @admin_router.message(Command("admin"))
 async def admin_panel(message: Message):
-    if message.from_user.id not in [1001953510]:  # 🔁 Добавь своих админов
+    if message.from_user.id not in [1001953510]:
         await message.answer("❌ У тебя нет доступа.")
         return
 
@@ -621,6 +621,8 @@ async def admin_panel(message: Message):
         [InlineKeyboardButton(text="👤 Все пользователи", callback_data="admin_all_users")],
         [InlineKeyboardButton(text="🧹 Удалить пользователя", callback_data="admin_delete_user")]
     ])
+
+    await message.answer("🔧 Админ-панель:", reply_markup=keyboard)
 @admin_router.callback_query(F.data == "admin_add_code")
 async def handle_add_code_callback(callback_query: CallbackQuery, state: FSMContext):
     await callback_query.message.answer("🔧 Введите код, который хотите добавить:")
@@ -803,7 +805,7 @@ async def notify_admin_all_codes():
 async def on_startup(dispatcher):
     await init_db()
     await notify_admin_all_codes()
-
+    dp.include_router(admin_router)
 
 async def main():
     try:
