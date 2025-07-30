@@ -2,7 +2,7 @@ import asyncpg
 import asyncio
 from datetime import datetime, timedelta
 from yoomoney import Quickpay
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher, F, Router
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -14,7 +14,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 from functools import partial
 import requests
 from aiogram.types import ReplyKeyboardRemove
-
+admin_router = Router()
 API_URL = "https://synet.syntex-dev.ru/redeem"
 API_TOKEN = "7712356486de523a"  # замените на свой
 
@@ -118,7 +118,7 @@ YOOMONEY_WALLET = "4100111899459093"
 BOT_TOKEN = "7587423228:AAHhVNFsKeWo8ck7xdDL1U8NHzTFsqDgZBE"
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
-
+dp.include_router(admin_router)
 
 class UCState(StatesGroup):
     choosing_quantity = State()
@@ -604,7 +604,20 @@ async def back_to_categories(message: Message):
     kb.button(text="UC Pubg Mobile")
     await message.answer("Выберите категорию:", reply_markup=kb.as_markup(resize_keyboard=True))
 
+@admin_router.message(Command("admin"))
+async def admin_panel(message: Message):
+    # тут ты можешь ограничить доступ по user_id
+    if message.from_user.id not in [1001953510]:  # 🔁 ← замени на свой Telegram ID
+        await message.answer("❌ У тебя нет доступа.")
+        return
 
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Добавить код", callback_data="admin_add_code")],
+        [InlineKeyboardButton(text="➖ Удалить код", callback_data="admin_delete_code")],
+        [InlineKeyboardButton(text="📋 Все коды", callback_data="admin_list_codes")]
+    ])
+
+    await message.answer("🔧 Админ-панель:", reply_markup=keyboard)
 @dp.message(F.text == "Помощь")
 async def help_msg(message: Message):
     await message.answer("ℹ️ По всем вопросам обращайтесь: @chudoo_19")
