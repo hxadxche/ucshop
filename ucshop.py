@@ -656,7 +656,7 @@ async def handle_delete_user_callback(callback_query: CallbackQuery, state: FSMC
     await callback_query.message.answer("🧹 Введите user_id пользователя, которого нужно удалить:")
     # FSM → delete_user_state
     await message.answer("🔧 Админ-панель:", reply_markup=keyboard)
-    @admin_router.message(AdminState.waiting_for_code)
+@admin_router.message(AdminState.waiting_for_code)
 async def process_new_code(message: Message, state: FSMContext):
     code_text = message.text.strip()
 
