@@ -838,7 +838,6 @@ async def main():
 
 
 
-    DATABASE_URL = 'postgresql://postgres:xRbtSljvnJweJPlmYvjbiCdvbqYequqF@postgres.railway.internal:5432/railway'
 if __name__ == "__main__":
     asyncio.run(main())
     fetch = fetchall
