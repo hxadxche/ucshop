@@ -697,8 +697,41 @@ async def handle_list_codes_callback(callback: CallbackQuery):
         await callback.message.edit_text(f"❌ Ошибка при получении кодов: {e}")
 @admin_router.callback_query(F.data == "admin_active_orders")
 async def handle_active_orders_callback(callback_query: CallbackQuery):
-    await callback_query.message.answer("📦 Здесь будут активные (pending) заказы.")
-    # SELECT * FROM orders WHERE status = 'pending'
+    await callback_query.answer()  # закрыть "часики" на кнопке
+
+    orders = await fetch(
+        """
+        SELECT o.id, o.user_id, o.label, o.quantity, o.price, u.username, u.pubg_id
+        FROM orders o
+        JOIN users u ON o.user_id = u.user_id
+        WHERE o.status = 'pending'
+        ORDER BY o.created_at DESC
+        """
+    )
+
+    if not orders:
+        await callback_query.message.answer("❌ Активных заказов нет.")
+        return
+
+    text = "<b>📦 Активные заказы:</b>\n\n"
+    for idx, order in enumerate(orders, 1):
+        username = order["username"] or "—"
+        user_id = order["user_id"]
+        pubg_id = order["pubg_id"] or "не указан"
+        label = order["label"]
+        quantity = order["quantity"]
+        price = order["price"]
+
+        text += (
+            f"{idx}. @{username} ({user_id})\n"
+            f"• PUBG ID: {pubg_id}\n"
+            f"• Пак: {label}\n"
+            f"• Кол-во: {quantity} шт.\n"
+            f"• Сумма: {price}₽\n"
+            f"• Статус: ⏳ В ожидании\n\n"
+        )
+
+    await callback_query.message.answer(text)
 
 @admin_router.callback_query(F.data == "admin_search_order")
 async def handle_search_order_callback(callback_query: CallbackQuery, state: FSMContext):
