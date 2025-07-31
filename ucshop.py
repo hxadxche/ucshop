@@ -26,6 +26,7 @@ DB_CONFIG = {
     'database': 'railway',
     'host': 'postgres.railway.internal',
     'port': '5432',
+    'DATABASE_URL': 'postgresql://postgres:xRbtSljvnJweJPlmYvjbiCdvbqYequqF@postgres.railway.internal:5432/railway',
 }
 
 _pg_pool = None  # глобальная переменная
