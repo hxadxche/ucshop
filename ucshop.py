@@ -612,7 +612,7 @@ async def back_to_categories(message: Message):
 
 @admin_router.message(Command("admin"))
 async def admin_panel(message: Message):
-    if message.from_user.id not in [1001953510]:
+    if message.from_user.id not in [1073756996]:
         await message.answer("❌ У тебя нет доступа.")
         return
 
