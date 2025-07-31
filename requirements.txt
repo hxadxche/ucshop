@@ -3,3 +3,4 @@ Flask
 asyncpg
 yoomoney
 requests
+psycopg2
