@@ -721,12 +721,75 @@ async def handle_active_orders_callback(callback_query: CallbackQuery):
 async def handle_search_order_callback(callback_query: CallbackQuery, state: FSMContext):
     await state.set_state(AdminSearchOrderState.waiting_for_query)
     await callback_query.message.answer("🔍 Введите <b>ID пользователя</b> или <b>ID заказа</b> для поиска:")
+async def send_users_page(message: Message, page: int):
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        users = await conn.fetch("SELECT * FROM users ORDER BY reg_date DESC")  # или created_at
 
+    page_size = 10
+    start = page * page_size
+    end = start + page_size
+    total_pages = (len(users) - 1) // page_size + 1
+
+    current_users = users[start:end]
+    if not current_users:
+        await message.answer("❌ Пользователи не найдены.")
+        return
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[])
+
+    for user in current_users:
+        kb.inline_keyboard.append([
+            InlineKeyboardButton(
+                text=f"👤 {user['user_id']}",
+                callback_data=f"view_user_{user['user_id']}"
+            )
+        ])
+
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton(text="⏮️ Назад", callback_data=f"page_users_{page - 1}"))
+    if end < len(users):
+        nav_buttons.append(InlineKeyboardButton(text="⏭️ Вперёд", callback_data=f"page_users_{page + 1}"))
+
+    if nav_buttons:
+        kb.inline_keyboard.append(nav_buttons)
+
+    await message.answer(
+        f"📄 Страница {page + 1} из {total_pages}\n"
+        f"Показано пользователей: {start + 1}–{min(end, len(users))} из {len(users)}",
+        reply_markup=kb
+    )
+@admin_router.callback_query(F.data.startswith("page_users_"))
+async def handle_users_pagination(callback_query: CallbackQuery):
+    page = int(callback_query.data.split("_")[-1])
+    await callback_query.message.delete()
+    await send_users_page(callback_query.message, page)
 @admin_router.callback_query(F.data == "admin_all_users")
-async def handle_all_users_callback(callback_query: CallbackQuery):
-    await callback_query.message.answer("👥 Здесь будет список всех пользователей.")
-    # SELECT * FROM users LIMIT 10 или что-то подобное
+async def handle_all_users(callback_query: CallbackQuery, state: FSMContext):
+    await state.update_data(users_page=0)
+    await send_users_page(callback_query.message, 0)
+@admin_router.callback_query(F.data.startswith("view_user_"))
+async def view_user_details(callback_query: CallbackQuery):
+    user_id = int(callback_query.data.split("_")[-1])
 
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        user = await conn.fetchrow("SELECT * FROM users WHERE user_id = $1", user_id)
+
+    if not user:
+        await callback_query.message.answer("❌ Пользователь не найден.")
+        return
+
+    text = (
+        f"<b>👤 Пользователь ID:</b> <code>{user['user_id']}</code>\n"
+        f"<b>📝 Username:</b> @{user['username'] or '—'}\n"
+        f"<b>📛 Имя:</b> {user['first_name'] or '—'}\n"
+        f"<b>🆔 PUBG ID:</b> {user['pubg_id'] or '—'}\n"
+        f"<b>📅 Дата регистрации:</b> {user['reg_date'] or '—'}"
+    )
+
+    await callback_query.message.answer(text)
 @admin_router.callback_query(F.data == "admin_delete_user")
 async def handle_delete_user_callback(callback_query: CallbackQuery, state: FSMContext):
     await callback_query.message.answer("🧹 Введите user_id пользователя, которого нужно удалить:")
