@@ -723,17 +723,19 @@ async def process_new_code(message: Message, state: FSMContext):
         return
 
     data = await state.get_data()
-    label = data.get("label")  # уже будет "60 UC"
+    raw_label = data.get("label")
+    label = f"{raw_label} UC"  # ← фиксируем label в формате "325 UC"
+
     # Фиксированные цены
     label_price_map = {
-    "60 UC": 90,
-    "325 UC": 400,
-    "660 UC": 800,
-    "1800 UC": 2050,
-    "3850 UC": 4000,
-    "8100 UC": 7700,
-}
-    price = label_price_map.get(label, 0)
+        "60": 90,
+        "325": 400,
+        "660": 800,
+        "1800": 2050,
+        "3850": 4000,
+        "8100": 7700,
+    }
+    price = label_price_map.get(raw_label, 0)  # ищем по "325", а не "325 UC"
 
     try:
         pool = await get_pg_pool()
@@ -743,7 +745,7 @@ async def process_new_code(message: Message, state: FSMContext):
                 code_text, label, price
             )
 
-        await message.answer(f"✅ Код <code>{code_text}</code> на {label} UC добавлен.")
+        await message.answer(f"✅ Код <code>{code_text}</code> на {label} добавлен.")
     except Exception as e:
         await message.answer(f"❌ Ошибка при добавлении: {e}")
 
