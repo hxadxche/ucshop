@@ -173,7 +173,7 @@ async def start(message: Message, state: FSMContext):
 @dp.message(F.text == "UC в наличии")
 async def uc_in_stock(message: Message):
     stock_info = "<b>📦 UC в наличии:</b>\n\n"
-    for label in ["60", "325", "660", "1800", "3850", "8100"]:
+    for label in ["60 UC", "325 UC", "660 UC", "1800 UC", "3850 UC", "8100 UC"]:
         count = await fetchval(
             "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
             label
@@ -219,12 +219,13 @@ async def handle_pubg_id(message: Message, state: FSMContext):
 @dp.message(F.text == "UC Pubg Mobile")
 async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
-    for label, price in uc_packages:
+    for label, price in [("60 UC", 2), ("325 UC", 390), ("660 UC", 800),
+                         ("1800 UC", 2050), ("3850 UC", 4000), ("8100 UC", 7700)]:
         count = await fetchval(
             "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
             label
         )
-    kb.button(text=f"{label} UC | {price} RUB | {count} шт.")
+        kb.button(text=f"{label} | {price} RUB | {count} шт.")
     kb.button(text="⬅️ Назад ко всем категориям")
     kb.adjust(1)
     await message.answer("Категория: UC Pubg Mobile", reply_markup=kb.as_markup(resize_keyboard=True))
@@ -256,8 +257,9 @@ async def handle_uc_package(message: Message, state: FSMContext, label: str, uni
     await send_quantity_menu(message, 1, unit_price, label)
 
 
-uc_packages = [("60", 90), ("325", 400), ("660", 800),
-               ("1800", 2050), ("3850", 4000), ("8100", 7700)]
+uc_packages = [("60 UC", 2), ("325 UC", 390), ("660 UC", 800),
+               ("1800 UC", 2050), ("3850 UC", 4000), ("8100 UC", 7700)]
+
 for label, price in uc_packages:
     @dp.message(F.text.startswith(label))
     async def handle(message: Message, state: FSMContext, lbl=label, prc=price):
@@ -724,12 +726,12 @@ async def process_new_code(message: Message, state: FSMContext):
     label = data.get("label")  # уже будет "60 UC"
     # Фиксированные цены
     label_price_map = {
-    "60": 90,
-    "325": 400,
-    "660": 800,
-    "1800": 2050,
-    "3850": 4000,
-    "8100": 7700,
+    "60 UC": 90,
+    "325 UC": 400,
+    "660 UC": 800,
+    "1800 UC": 2050,
+    "3850 UC": 4000,
+    "8100 UC": 7700,
 }
     price = label_price_map.get(label, 0)
 
