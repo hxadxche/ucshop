@@ -131,6 +131,7 @@ class UCState(StatesGroup):
 class AdminState(StatesGroup):
     choosing_label = State()
     waiting_for_code = State()
+    delete_user_state = State()
 class AdminSearchOrderState(StatesGroup):
     waiting_for_query = State()
 # === Команда /start ===
@@ -792,8 +793,32 @@ async def view_user_details(callback_query: CallbackQuery):
     await callback_query.message.answer(text)
 @admin_router.callback_query(F.data == "admin_delete_user")
 async def handle_delete_user_callback(callback_query: CallbackQuery, state: FSMContext):
-    await callback_query.message.answer("🧹 Введите user_id пользователя, которого нужно удалить:")
-    # FSM → delete_user_state
+    await state.set_state(AdminState.delete_user_state)
+    await callback_query.message.answer("🧹 Введите <code>user_id</code> пользователя, которого нужно удалить:")
+@admin_router.message(AdminState.delete_user_state)
+async def delete_user_by_id(message: Message, state: FSMContext):
+    try:
+        user_id = int(message.text.strip())
+    except ValueError:
+        await message.answer("❌ Неверный формат. Введите числовой user_id.")
+        return
+
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        # Проверка, существует ли пользователь
+        user = await conn.fetchrow("SELECT * FROM users WHERE user_id = $1", user_id)
+        if not user:
+            await message.answer("❌ Пользователь с таким ID не найден.")
+            await state.clear()
+            return
+
+        # Удалим все связанные заказы
+        await conn.execute("DELETE FROM orders WHERE user_id = $1", user_id)
+        # Удалим самого пользователя
+        await conn.execute("DELETE FROM users WHERE user_id = $1", user_id)
+
+    await message.answer(f"✅ Пользователь <code>{user_id}</code> и все его заказы были удалены.")
+    await state.clear()
     await message.answer("🔧 Админ-панель:", reply_markup=keyboard)
 @admin_router.message(AdminState.waiting_for_code)
 async def process_new_code(message: Message, state: FSMContext):
