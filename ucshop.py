@@ -131,7 +131,8 @@ class UCState(StatesGroup):
 class AdminState(StatesGroup):
     choosing_label = State()
     waiting_for_code = State()
-
+class AdminSearchOrderState(StatesGroup):
+    waiting_for_query = State()
 # === Команда /start ===
 @dp.message(F.text == "/start")
 async def start(message: Message, state: FSMContext):
@@ -718,8 +719,8 @@ async def handle_active_orders_callback(callback_query: CallbackQuery):
 
 @admin_router.callback_query(F.data == "admin_search_order")
 async def handle_search_order_callback(callback_query: CallbackQuery, state: FSMContext):
-    await callback_query.message.answer("🔍 Введите ID пользователя или order_id для поиска заказа:")
-    # FSM → search_order_state
+    await state.set_state(AdminSearchOrderState.waiting_for_query)
+    await callback_query.message.answer("🔍 Введите <b>ID пользователя</b> или <b>ID заказа</b> для поиска:")
 
 @admin_router.callback_query(F.data == "admin_all_users")
 async def handle_all_users_callback(callback_query: CallbackQuery):
@@ -781,6 +782,36 @@ async def delete_selected_code(callback: CallbackQuery):
 
     except Exception as e:
         await callback.message.edit_text(f"❌ Ошибка при удалении: {e}")
+@admin_router.message(AdminSearchOrderState.waiting_for_query)
+async def process_order_search(message: Message, state: FSMContext):
+    query = message.text.strip()
+
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        # Пробуем как order_id
+        order = await conn.fetchrow("SELECT * FROM orders WHERE id = $1", query)
+        if not order and query.isdigit():
+            # Пробуем как user_id
+            orders = await conn.fetch("SELECT * FROM orders WHERE user_id = $1", int(query))
+        else:
+            orders = [order] if order else []
+
+    if not orders:
+        await message.answer("❌ Заказ не найден.")
+    else:
+        for order in orders:
+            text = (
+                f"<b>📦 Заказ #{order['id']}</b>\n"
+                f"👤 Пользователь ID: <code>{order['user_id']}</code>\n"
+                f"🎁 Пакет: {order['label']} UC\n"
+                f"🔢 Кол-во: {order['quantity']}\n"
+                f"💰 Цена: {order['price']} RUB\n"
+                f"📌 Статус: <b>{order['status']}</b>\n"
+                f"⏱️ Дата: {order['created_at'].strftime('%Y-%m-%d %H:%M')}\n"
+            )
+            await message.answer(text)
+
+    await state.clear()
 @dp.message(F.text == "Помощь")
 async def help_msg(message: Message):
     await message.answer("ℹ️ По всем вопросам обращайтесь: @chudoo_19")
