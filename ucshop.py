@@ -16,6 +16,7 @@ import requests
 from aiogram.types import ReplyKeyboardRemove
 from aiogram.filters import Command
 import psycopg2
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 admin_router = Router()
 API_URL = "https://synet.syntex-dev.ru/redeem"
 API_TOKEN = "7712356486de523a"  # замените на свой
