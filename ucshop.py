@@ -697,41 +697,32 @@ async def handle_list_codes_callback(callback: CallbackQuery):
         await callback.message.edit_text(f"❌ Ошибка при получении кодов: {e}")
 @admin_router.callback_query(F.data == "admin_active_orders")
 async def handle_active_orders_callback(callback_query: CallbackQuery):
-    await callback_query.answer()  # закрыть "часики" на кнопке
-
-    orders = await fetchall(
-        """
-        SELECT o.id, o.user_id, o.label, o.quantity, o.price, u.username, u.pubg_id
-        FROM orders o
-        JOIN users u ON o.user_id = u.user_id
-        WHERE o.status = 'pending'
-        ORDER BY o.created_at DESC
-        """
-    )
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        orders = await conn.fetch("SELECT * FROM orders WHERE status = 'pending'")
 
     if not orders:
-        await callback_query.message.answer("❌ Активных заказов нет.")
+        await callback_query.message.answer("✅ Нет активных заказов.")
         return
 
-    text = "<b>📦 Активные заказы:</b>\n\n"
-    for idx, order in enumerate(orders, 1):
-        username = order["username"] or "—"
-        user_id = order["user_id"]
-        pubg_id = order["pubg_id"] or "не указан"
-        label = order["label"]
-        quantity = order["quantity"]
-        price = order["price"]
-
-        text += (
-            f"{idx}. @{username} ({user_id})\n"
-            f"• PUBG ID: {pubg_id}\n"
-            f"• Пак: {label}\n"
-            f"• Кол-во: {quantity} шт.\n"
-            f"• Сумма: {price}₽\n"
-            f"• Статус: ⏳ В ожидании\n\n"
+    for order in orders:
+        text = (
+            f"<b>📦 Заказ #{order['id']}</b>\n"
+            f"👤 Пользователь ID: <code>{order['user_id']}</code>\n"
+            f"🎁 Пакет: {order['label']} UC\n"
+            f"🔢 Кол-во: {order['quantity']}\n"
+            f"💰 Цена: {order['price']} RUB\n"
+            f"⏱ Дата: {order['created_at'].strftime('%Y-%m-%d %H:%M')}\n"
         )
-
-    await callback_query.message.answer(text)
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(
+                    text=f"❌ Отменить заказ #{order['id']}",
+                    callback_data=f"cancel_order_{order['id']}"
+                )]
+            ]
+        )
+        await callback_query.message.answer(text, reply_markup=kb)
 
 @admin_router.callback_query(F.data == "admin_search_order")
 async def handle_search_order_callback(callback_query: CallbackQuery, state: FSMContext):
@@ -798,6 +789,16 @@ async def delete_selected_code(callback: CallbackQuery):
 
     except Exception as e:
         await callback.message.edit_text(f"❌ Ошибка при удалении: {e}")
+@admin_router.callback_query(F.data.startswith("cancel_order_"))
+async def cancel_order_callback(callback_query: CallbackQuery):
+    order_id = int(callback_query.data.split("_")[-1])
+
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE orders SET status = 'cancelled' WHERE id = $1", order_id)
+
+    await callback_query.answer("✅ Заказ отменён.")
+    await callback_query.message.edit_text(f"❌ Заказ #{order_id} отменён.")
 @dp.message(F.text == "Помощь")
 async def help_msg(message: Message):
     await message.answer("ℹ️ По всем вопросам обращайтесь: @chudoo_19")
