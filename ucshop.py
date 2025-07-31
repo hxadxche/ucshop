@@ -219,13 +219,12 @@ async def handle_pubg_id(message: Message, state: FSMContext):
 @dp.message(F.text == "UC Pubg Mobile")
 async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
-    for label, price in [("60 ", 2), ("325 ", 390), ("660", 800),
-                         ("1800 ", 2050), ("3850 ", 4000), ("8100 ", 7700)]:
-        count = await fetchval(
-            "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
-            label
-        )
-        kb.button(text=f"{label} UC | {price} RUB | {count} шт.")
+    for label, price in uc_packages:
+    count = await fetchval(
+        "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
+        label
+    )
+    kb.button(text=f"{label} UC | {price} RUB | {count} шт.")
     kb.button(text="⬅️ Назад ко всем категориям")
     kb.adjust(1)
     await message.answer("Категория: UC Pubg Mobile", reply_markup=kb.as_markup(resize_keyboard=True))
@@ -257,9 +256,8 @@ async def handle_uc_package(message: Message, state: FSMContext, label: str, uni
     await send_quantity_menu(message, 1, unit_price, label)
 
 
-uc_packages = [("60 ", 2), ("325 ", 390), ("660 ", 800),
-               ("1800 ", 2050), ("3850 ", 4000), ("8100 ", 7700)]
-
+uc_packages = [("60", 90), ("325", 400), ("660", 800),
+               ("1800", 2050), ("3850", 4000), ("8100", 7700)]
 for label, price in uc_packages:
     @dp.message(F.text.startswith(label))
     async def handle(message: Message, state: FSMContext, lbl=label, prc=price):
