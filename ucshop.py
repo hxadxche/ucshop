@@ -642,9 +642,35 @@ async def handle_choose_code_type(callback_query: CallbackQuery, state: FSMConte
     await state.update_data(label=label)
     await callback_query.message.answer(f"🔠 Введите UC-код для {label} UC:")
 @admin_router.callback_query(F.data == "admin_delete_code")
-async def handle_delete_code_callback(callback_query: CallbackQuery, state: FSMContext):
-    await callback_query.message.answer("🧹 Введите код, который хотите удалить:")
-    # FSM → delete_code_state
+async def handle_delete_code_callback(callback: CallbackQuery):
+    try:
+        pool = await get_pg_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT id, code, label FROM uc_codes WHERE used = FALSE LIMIT 30")
+
+            if not rows:
+                await callback.message.edit_text("✅ Нет доступных кодов для удаления.")
+                return
+
+            builder = InlineKeyboardBuilder()
+
+            for row in rows:
+                code_id = row["id"]
+                code = row["code"]
+                label = row["label"]
+                builder.button(
+                    text=f"{label} UC | {code[:10]}...",
+                    callback_data=f"delete_code:{code_id}"
+                )
+
+            builder.adjust(1)
+            await callback.message.edit_text(
+                "🧹 Выберите код, который хотите удалить:",
+                reply_markup=builder.as_markup()
+            )
+
+    except Exception as e:
+        await callback.message.edit_text(f"❌ Ошибка при загрузке кодов: {e}")
 
 @admin_router.callback_query(F.data == "admin_list_codes")
 async def handle_list_codes_callback(callback_query: CallbackQuery):
@@ -705,6 +731,21 @@ async def process_new_code(message: Message, state: FSMContext):
         await message.answer(f"❌ Ошибка при добавлении: {e}")
 
     await state.clear()
+@admin_router.callback_query(F.data.startswith("delete_code:"))
+async def delete_selected_code(callback: CallbackQuery):
+    code_id = int(callback.data.split(":")[1])
+    try:
+        pool = await get_pg_pool()
+        async with pool.acquire() as conn:
+            result = await conn.execute("DELETE FROM uc_codes WHERE id = $1", code_id)
+
+        await callback.answer("✅ Код удалён.", show_alert=True)
+
+        # Обновим список
+        await handle_delete_code_callback(callback)
+
+    except Exception as e:
+        await callback.message.edit_text(f"❌ Ошибка при удалении: {e}")
 @dp.message(F.text == "Помощь")
 async def help_msg(message: Message):
     await message.answer("ℹ️ По всем вопросам обращайтесь: @chudoo_19")
