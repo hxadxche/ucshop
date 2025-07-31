@@ -723,17 +723,16 @@ async def process_new_code(message: Message, state: FSMContext):
         return
 
     data = await state.get_data()
-    label = data.get("label")
-
+    label = data.get("label")  # уже будет "60 UC"
     # Фиксированные цены
     label_price_map = {
-        "60": 90,
-        "325": 400,
-        "660": 800,
-        "1800": 2050,
-        "3850": 4000,
-        "8100": 7700,
-    }
+    "60 UC": 90,
+    "325 UC": 400,
+    "660 UC": 800,
+    "1800 UC": 2050,
+    "3850 UC": 4000,
+    "8100 UC": 7700,
+}
     price = label_price_map.get(label, 0)
 
     try:
