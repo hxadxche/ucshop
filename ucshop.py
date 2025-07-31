@@ -127,6 +127,7 @@ class UCState(StatesGroup):
     waiting_for_umoney_payment = State()
     entering_pubg_id = State()
 class AdminState(StatesGroup):
+    choosing_label = State()
     waiting_for_code = State()
 
 # === Команда /start ===
@@ -624,9 +625,21 @@ async def admin_panel(message: Message):
     await message.answer("🔧 Админ-панель:", reply_markup=keyboard)
 @admin_router.callback_query(F.data == "admin_add_code")
 async def handle_add_code_callback(callback_query: CallbackQuery, state: FSMContext):
-    await callback_query.message.answer("🔧 Введите код, который хотите добавить:")
-    # Здесь потом FSM → add_code_state
-
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="60 UC", callback_data="addcode_60")],
+        [InlineKeyboardButton(text="325 UC", callback_data="addcode_325")],
+        [InlineKeyboardButton(text="660 UC", callback_data="addcode_660")],
+        [InlineKeyboardButton(text="1800 UC", callback_data="addcode_1800")],
+        [InlineKeyboardButton(text="3850 UC", callback_data="addcode_3850")],
+        [InlineKeyboardButton(text="8100 UC", callback_data="addcode_8100")],
+    ])
+    await callback_query.message.answer("💾 Выберите тип UC-кода для добавления:", reply_markup=keyboard)
+@admin_router.callback_query(F.data.startswith("addcode_"))
+async def handle_choose_code_type(callback_query: CallbackQuery, state: FSMContext):
+    label = callback_query.data.replace("addcode_", "")
+    await state.set_state(AdminState.waiting_for_code)
+    await state.update_data(label=label)
+    await callback_query.message.answer(f"🔠 Введите UC-код для {label} UC:")
 @admin_router.callback_query(F.data == "admin_delete_code")
 async def handle_delete_code_callback(callback_query: CallbackQuery, state: FSMContext):
     await callback_query.message.answer("🧹 Введите код, который хотите удалить:")
@@ -660,31 +673,38 @@ async def handle_delete_user_callback(callback_query: CallbackQuery, state: FSMC
 @admin_router.message(AdminState.waiting_for_code)
 async def process_new_code(message: Message, state: FSMContext):
     code_text = message.text.strip()
-
     if not code_text:
-        await message.answer("❌ Код не может быть пустым. Попробуйте снова.")
+        await message.answer("❌ Код не может быть пустым.")
         return
+
+    data = await state.get_data()
+    label = data.get("label")
+    
+    # Фиксированные цены
+    label_price_map = {
+        "60": 90,
+        "325": 400,
+        "660": 800,
+        "1800": 2050,
+        "3850": 4000,
+        "8100": 7700,
+    }
+    price = label_price_map.get(label, 0)
 
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode="require")
         cursor = conn.cursor()
-
-        # Тут ты можешь изменить label и price на нужные
-        label = "default"
-        price = 0
         cursor.execute(
             "INSERT INTO uc_codes (code, label, price, used) VALUES (%s, %s, %s, FALSE)",
             (code_text, label, price)
         )
-
         conn.commit()
         cursor.close()
         conn.close()
 
-        await message.answer(f"✅ Код <code>{code_text}</code> успешно добавлен в базу.")
+        await message.answer(f"✅ Код <code>{code_text}</code> на {label} UC добавлен.")
     except Exception as e:
-        await message.answer(f"❌ Ошибка при добавлении кода: {e}")
-
+        await message.answer(f"❌ Ошибка при добавлении: {e}")
     await state.clear()
 @dp.message(F.text == "Помощь")
 async def help_msg(message: Message):
