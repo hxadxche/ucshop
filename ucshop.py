@@ -788,28 +788,31 @@ async def process_order_search(message: Message, state: FSMContext):
 
     pool = await get_pg_pool()
     async with pool.acquire() as conn:
-        # Пробуем как order_id
-        order = await conn.fetchrow("SELECT * FROM orders WHERE id = $1", query)
-        if not order and query.isdigit():
-            # Пробуем как user_id
-            orders = await conn.fetch("SELECT * FROM orders WHERE user_id = $1", int(query))
-        else:
-            orders = [order] if order else []
+        orders = []
 
-    if not orders:
-        await message.answer("❌ Заказ не найден.")
-    else:
-        for order in orders:
-            text = (
-                f"<b>📦 Заказ #{order['id']}</b>\n"
-                f"👤 Пользователь ID: <code>{order['user_id']}</code>\n"
-                f"🎁 Пакет: {order['label']} UC\n"
-                f"🔢 Кол-во: {order['quantity']}\n"
-                f"💰 Цена: {order['price']} RUB\n"
-                f"📌 Статус: <b>{order['status']}</b>\n"
-                f"⏱️ Дата: {order['created_at'].strftime('%Y-%m-%d %H:%M')}\n"
-            )
-            await message.answer(text)
+        if query.isdigit():
+            # Пробуем как order_id
+            order = await conn.fetchrow("SELECT * FROM orders WHERE id = $1", int(query))
+            if order:
+                orders.append(order)
+            else:
+                # Пробуем как user_id (вдруг это id юзера, а не заказа)
+                orders = await conn.fetch("SELECT * FROM orders WHERE user_id = $1", int(query))
+
+        if not orders:
+            await message.answer("❌ Заказ не найден.")
+        else:
+            for order in orders:
+                text = (
+                    f"<b>📦 Заказ #{order['id']}</b>\n"
+                    f"👤 Пользователь ID: <code>{order['user_id']}</code>\n"
+                    f"🎁 Пакет: {order['label']} UC\n"
+                    f"🔢 Кол-во: {order['quantity']}\n"
+                    f"💰 Цена: {order['price']} RUB\n"
+                    f"📌 Статус: <b>{order['status']}</b>\n"
+                    f"⏱️ Дата: {order['created_at'].strftime('%Y-%m-%d %H:%M')}\n"
+                )
+                await message.answer(text)
 
     await state.clear()
 @dp.message(F.text == "Помощь")
