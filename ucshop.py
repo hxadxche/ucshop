@@ -680,7 +680,7 @@ async def process_new_code(message: Message, state: FSMContext):
 
     data = await state.get_data()
     label = data.get("label")
-    
+
     # Фиксированные цены
     label_price_map = {
         "60": 90,
@@ -693,19 +693,17 @@ async def process_new_code(message: Message, state: FSMContext):
     price = label_price_map.get(label, 0)
 
     try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO uc_codes (code, label, price, used) VALUES (%s, %s, %s, FALSE)",
-            (code_text, label, price)
-        )
-        conn.commit()
-        cursor.close()
-        conn.close()
+        pool = await get_pg_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO uc_codes (code, label, price, used) VALUES ($1, $2, $3, FALSE)",
+                code_text, label, price
+            )
 
         await message.answer(f"✅ Код <code>{code_text}</code> на {label} UC добавлен.")
     except Exception as e:
         await message.answer(f"❌ Ошибка при добавлении: {e}")
+
     await state.clear()
 @dp.message(F.text == "Помощь")
 async def help_msg(message: Message):
