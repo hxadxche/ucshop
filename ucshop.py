@@ -173,7 +173,7 @@ async def start(message: Message, state: FSMContext):
 @dp.message(F.text == "UC в наличии")
 async def uc_in_stock(message: Message):
     stock_info = "<b>📦 UC в наличии:</b>\n\n"
-    for label in ["60 UC", "325 UC", "660 UC", "1800 UC", "3850 UC", "8100 UC"]:
+    for label in ["60 ", "325 ", "660 ", "1800 ", "3850 ", "8100 "]:
         count = await fetchval(
             "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
             label
