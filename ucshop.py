@@ -674,10 +674,27 @@ async def handle_delete_code_callback(callback: CallbackQuery):
         await callback.message.edit_text(f"❌ Ошибка при загрузке кодов: {e}")
 
 @admin_router.callback_query(F.data == "admin_list_codes")
-async def handle_list_codes_callback(callback_query: CallbackQuery):
-    await callback_query.message.answer("📋 Здесь будут отображены все коды.")
-    # Тут в будущем — SELECT из базы и вывод в сообщении
+async def handle_list_codes_callback(callback: CallbackQuery):
+    try:
+        pool = await get_pg_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT id, code, label, used FROM uc_codes ORDER BY id DESC LIMIT 50")
 
+            if not rows:
+                await callback.message.edit_text("❌ В базе данных пока нет кодов.")
+                return
+
+            text_lines = []
+            for row in rows:
+                status = "✅" if row["used"] else "🟢"
+                text_lines.append(f"{status} <b>{row['label']} UC</b> — <code>{row['code']}</code>")
+
+            result_text = "\n".join(text_lines)
+
+            await callback.message.edit_text(f"<b>📋 Все коды:</b>\n\n{result_text}")
+
+    except Exception as e:
+        await callback.message.edit_text(f"❌ Ошибка при получении кодов: {e}")
 @admin_router.callback_query(F.data == "admin_active_orders")
 async def handle_active_orders_callback(callback_query: CallbackQuery):
     await callback_query.message.answer("📦 Здесь будут активные (pending) заказы.")
