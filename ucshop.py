@@ -221,7 +221,7 @@ async def handle_pubg_id(message: Message, state: FSMContext):
 @dp.message(F.text == "UC Pubg Mobile")
 async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
-    for label, price in [("60 UC", 2), ("325 UC", 390), ("660 UC", 800),
+    for label, price in [("60 UC", 90), ("325 UC", 400), ("660 UC", 800),
                          ("1800 UC", 2050), ("3850 UC", 4000), ("8100 UC", 7700)]:
         count = await fetchval(
             "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
@@ -259,7 +259,7 @@ async def handle_uc_package(message: Message, state: FSMContext, label: str, uni
     await send_quantity_menu(message, 1, unit_price, label)
 
 
-uc_packages = [("60 UC", 2), ("325 UC", 390), ("660 UC", 800),
+uc_packages = [("60 UC", 90), ("325 UC", 400), ("660 UC", 800),
                ("1800 UC", 2050), ("3850 UC", 4000), ("8100 UC", 7700)]
 
 for label, price in uc_packages:
