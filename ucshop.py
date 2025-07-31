@@ -173,7 +173,7 @@ async def start(message: Message, state: FSMContext):
 @dp.message(F.text == "UC в наличии")
 async def uc_in_stock(message: Message):
     stock_info = "<b>📦 UC в наличии:</b>\n\n"
-    for label in ["60 ", "325 ", "660 ", "1800 ", "3850 ", "8100 "]:
+    for label in ["60", "325", "660", "1800", "3850", "8100"]:
         count = await fetchval(
             "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
             label
@@ -220,10 +220,10 @@ async def handle_pubg_id(message: Message, state: FSMContext):
 async def show_uc_packages(message: Message):
     kb = ReplyKeyboardBuilder()
     for label, price in uc_packages:
-    count = await fetchval(
-        "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
-        label
-    )
+        count = await fetchval(
+            "SELECT COUNT(*) FROM uc_codes WHERE label = $1 AND used = FALSE",
+            label
+        )
     kb.button(text=f"{label} UC | {price} RUB | {count} шт.")
     kb.button(text="⬅️ Назад ко всем категориям")
     kb.adjust(1)
