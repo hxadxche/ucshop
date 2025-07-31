@@ -699,7 +699,7 @@ async def handle_list_codes_callback(callback: CallbackQuery):
 async def handle_active_orders_callback(callback_query: CallbackQuery):
     await callback_query.answer()  # закрыть "часики" на кнопке
 
-    orders = await fetch(
+    orders = await fetchall(
         """
         SELECT o.id, o.user_id, o.label, o.quantity, o.price, u.username, u.pubg_id
         FROM orders o
